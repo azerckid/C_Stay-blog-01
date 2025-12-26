@@ -16,6 +16,9 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
 - **Framework**: React Router v7 (Vite)
 - **Styling**: Tailwind CSS v4, shadcn/ui (Nova Preset)
 - **Database**: Turso (libSQL) with Prisma ORM
+- **Authentication**: Auth.js (session-based authentication)
+- **Validation**: Zod (schema validation)
+- **Date/Time**: Luxon (date and time handling)
 - **Media Storage**: Cloudinary (for image and video uploads)
 
 ## Code Style & Conventions
@@ -24,6 +27,7 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
 - Follow the shadcn/ui Nova design system for UI consistency.
 - Use **Zod** for all schema validations and type-safe parsing.
 - Use **Luxon** for date and time handling.
+- For React Router v7 route functions (`meta`, `loader`, `action`), import types from `react-router` (e.g., `LoaderFunctionArgs`, `ActionFunctionArgs`, `MetaFunction`).
 - Git commit messages must follow Conventional Commits in Korean (e.g., `feat(ui): 로그인 기능 추가`).
 
 ## Testing Instructions
