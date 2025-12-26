@@ -93,9 +93,13 @@ Auth.js를 사용한 세션 기반 인증 시스템 구현
   - 보호된 라우트 구현
   - 로그아웃 기능
 
-- [ ] OAuth 제공자 설정 (선택사항)
-  - Google, GitHub 등 OAuth 설정
-  - OAuth 로그인 페이지 구현
+- [ ] OAuth 제공자 설정
+  - Google OAuth 설정 및 구현
+    - 리다이렉트 URL: `http://localhost:5173/auth/google/callback`
+  - Kakao OAuth 설정 및 구현
+    - 리다이렉트 URL: `http://localhost:5173/auth/kakao/callback`
+  - OAuth 로그인 버튼 UI (Google, Kakao)
+  - OAuth 콜백 처리
 
 ---
 
