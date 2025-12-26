@@ -3,7 +3,7 @@
 Welcome! your AI coding agent. This file follows the [AGENTS.md](https://agents.md/) standard to provide me with the context and instructions I need to work on the **STAYnC** project effectively.
 
 ## Project Overview
-STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), and modern web technologies. The goal is to recreate the core functionality and user experience of Twitter/X, featuring a modern UI with Tailwind v4 and shadcn/ui components.
+STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), and modern web technologies. The goal is to recreate the core functionality and user experience of Twitter/X, featuring a modern UI with Tailwind v4 and shadcn/ui components. The project is **mobile-first**, optimized for mobile devices while maintaining full desktop support, using Capacitor for native mobile app deployment.
 
 ## Setup Commands
 - Install dependencies: `npm install`
@@ -20,6 +20,7 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
 - **Validation**: Zod (schema validation)
 - **Date/Time**: Luxon (date and time handling)
 - **Media Storage**: Cloudinary (for image and video uploads)
+- **Mobile**: Capacitor (iOS, Android native apps, PWA support)
 
 ## Code Style & Conventions
 - Use **TypeScript** for all files.

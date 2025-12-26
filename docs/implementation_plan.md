@@ -16,7 +16,8 @@ STAYnC 트위터/X 클론 프로젝트의 단계별 구현 계획입니다.
 - [ ] Phase 9: 프로필 및 사용자 기능
 - [ ] Phase 10: 검색 기능
 - [ ] Phase 11: 고급 기능 (북마크, 알림 등)
-- [ ] Phase 12: 테스트 및 최적화
+- [ ] Phase 12: 모바일 앱 배포 (Capacitor)
+- [ ] Phase 13: 테스트 및 최적화
 
 ---
 
@@ -29,6 +30,10 @@ STAYnC 트위터/X 클론 프로젝트의 단계별 구현 계획입니다.
 - [x] shadcn/ui (Nova Preset) 설정
 - [x] TypeScript 설정
 - [x] 프로젝트 문서화 (AGENTS.md, DATABASE_SCHEMA.md)
+
+### 추가 설정 필요
+
+- [ ] Capacitor 설치 및 설정 (모바일 앱 배포용)
 
 ---
 
@@ -376,7 +381,43 @@ Cloudinary를 사용한 이미지/동영상 업로드 기능
 
 ---
 
-## Phase 12: 테스트 및 최적화
+## Phase 12: 모바일 앱 배포 (Capacitor)
+
+### 목표
+Capacitor를 사용하여 네이티브 모바일 앱 빌드 및 배포
+
+### 작업 항목
+
+- [ ] Capacitor 설치 및 설정
+  - `npm install @capacitor/core @capacitor/cli`
+  - `npm install @capacitor/ios @capacitor/android`
+  - `npx cap init` 실행
+
+- [ ] React Router v7 SPA 모드 설정
+  - 모바일 앱용 SPA 모드 활성화 (필요시)
+  - 빌드 설정 최적화
+
+- [ ] Capacitor 설정
+  - `capacitor.config.ts` 설정
+  - 앱 아이콘 및 스플래시 화면 설정
+  - 권한 설정 (카메라, 갤러리 등)
+
+- [ ] iOS 앱 설정
+  - Xcode 프로젝트 생성
+  - iOS 빌드 및 테스트
+  - App Store 배포 준비
+
+- [ ] Android 앱 설정
+  - Android Studio 프로젝트 생성
+  - Android 빌드 및 테스트
+  - Play Store 배포 준비
+
+- [ ] PWA 지원
+  - Manifest 파일 설정
+  - Service Worker 설정
+  - 오프라인 지원 (선택사항)
+
+## Phase 13: 테스트 및 최적화
 
 ### 목표
 테스트 작성 및 성능 최적화
@@ -400,16 +441,19 @@ Cloudinary를 사용한 이미지/동영상 업로드 기능
   - 데이터베이스 쿼리 최적화
   - 코드 스플리팅
   - 로딩 성능 개선
+  - 모바일 성능 최적화
 
 - [ ] 접근성 개선
   - 키보드 네비게이션
   - 스크린 리더 지원
   - ARIA 레이블 추가
+  - 모바일 접근성 최적화
 
 - [ ] 문서화
   - API 문서화
   - 컴포넌트 문서화
   - 배포 가이드 작성
+  - 모바일 앱 빌드 가이드
 
 ---
 
