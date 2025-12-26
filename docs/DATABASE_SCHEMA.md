@@ -99,22 +99,27 @@
 다음 테이블들은 트위터 클론 기능을 위해 새로 추가해야 합니다:
 
 1. **`Tweet`** (또는 `Post`) - 트윗/게시물
-   - id, userId, content, imageUrl(s), createdAt, updatedAt 등
+   - id, userId, content, createdAt, updatedAt
+   - **`parentId`**: 답글일 경우 원본 트윗의 ID (Self-referencing)
+   - **`isRetweet`**, **`originalTweetId`**: 리트윗 여부 및 원본 ID (선택적)
 
-2. **`Like`** - 좋아요
+2. **`Media`** - 트윗에 첨부된 미디어 (이미지/동영상)
+   - id, tweetId, type (IMAGE, VIDEO), url, thumbnailUrl, altText, order, createdAt
+
+3. **`Like`** - 좋아요
    - id, userId, tweetId, createdAt
 
-3. **`Retweet`** (또는 `Repost`) - 리트윗
+4. **`Retweet`** (또는 `Repost`) - 리트윗
    - id, userId, tweetId, createdAt
+   - *참고: 단순 리트윗은 별도 테이블로 관리하거나, Tweet 테이블에 포함할 수 있음. 현재는 별도 테이블 유지 또는 Tweet 테이블 통합 고려.*
 
-4. **`Follow`** - 팔로우 관계
+5. **`Follow`** - 팔로우 관계
    - id, followerId, followingId, createdAt
-
-5. **`Reply`** (또는 `Comment`) - 댓글/답글
-   - id, userId, tweetId, parentId (대댓글), content, createdAt, updatedAt
 
 6. **`Bookmark`** - 북마크 (선택사항)
    - id, userId, tweetId, createdAt
+
+*참고: `Reply` 테이블은 `Tweet` 테이블의 자기 참조(`parentId`)로 통합하여 관리합니다.*
 
 ## 스키마 변경 가이드
 
