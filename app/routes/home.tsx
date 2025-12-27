@@ -1,23 +1,29 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { useSession } from "~/lib/auth-client";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
 import { TweetCompose } from "~/components/tweet/tweet-compose";
 import { TweetCard } from "~/components/tweet/tweet-card";
+import { LoadingSpinner } from "~/components/ui/loading-spinner";
+import { useEffect, useRef, useState } from "react";
 
 import { prisma } from "~/lib/prisma.server";
 import { DateTime } from "luxon";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const session = await getSession(request);
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get("cursor");
+  const limit = 20;
 
   const tweets = await prisma.tweet.findMany({
     where: {
       deletedAt: null, // Soft Delete: 삭제되지 않은 트윗만 조회
+      ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}), // 커서 기반 페이지네이션 (createdAt 기준)
     },
-    take: 20,
+    take: limit + 1, // 다음 페이지 존재 여부 확인을 위해 +1
     orderBy: { createdAt: "desc" },
     include: {
       user: true,
@@ -31,7 +37,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
   });
 
-  const formattedTweets = tweets.map(tweet => ({
+  const hasNextPage = tweets.length > limit;
+  const paginatedTweets = hasNextPage ? tweets.slice(0, limit) : tweets;
+  const nextCursor = paginatedTweets.length > 0 ? paginatedTweets[paginatedTweets.length - 1].createdAt.toISOString() : null;
+
+  const formattedTweets = paginatedTweets.map(tweet => ({
     id: tweet.id,
     content: tweet.content,
     createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
@@ -56,7 +66,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
     } : undefined
   }));
 
-  return { session, tweets: formattedTweets };
+  return { 
+    session, 
+    tweets: formattedTweets,
+    nextCursor: hasNextPage ? nextCursor : null,
+  };
 }
 
 export function meta({ }: MetaFunction) {
@@ -68,10 +82,51 @@ export function meta({ }: MetaFunction) {
 
 
 export default function Home() {
-  const { session: serverSession, tweets } = useLoaderData<typeof loader>();
+  const { session: serverSession, tweets: initialTweets, nextCursor: initialNextCursor } = useLoaderData<typeof loader>();
   const { data: clientSession } = useSession();
+  const fetcher = useFetcher<typeof loader>();
+  const [tweets, setTweets] = useState(initialTweets);
+  const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const isLoadingMore = fetcher.state !== "idle";
 
   const session = clientSession || serverSession;
+
+  // 무한 스크롤: Intersection Observer로 하단 감지
+  useEffect(() => {
+    if (!loadMoreRef.current || !nextCursor || isLoadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && nextCursor) {
+          fetcher.load(`/?cursor=${nextCursor}`);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [nextCursor, isLoadingMore, fetcher]);
+
+  // 추가 트윗 로드 완료 시 상태 업데이트
+  useEffect(() => {
+    if (fetcher.data && fetcher.state === "idle") {
+      const newTweets = fetcher.data.tweets;
+      if (newTweets && newTweets.length > 0) {
+        setTweets((prev) => [...prev, ...newTweets]);
+        setNextCursor(fetcher.data.nextCursor);
+      } else {
+        setNextCursor(null);
+      }
+    }
+  }, [fetcher.data, fetcher.state]);
+
+  // 초기 데이터 변경 시 상태 초기화 (예: 새 트윗 작성 후)
+  useEffect(() => {
+    setTweets(initialTweets);
+    setNextCursor(initialNextCursor);
+  }, [initialTweets, initialNextCursor]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -104,9 +159,18 @@ export default function Home() {
             아직 작성된 트윗이 없습니다. 첫 번째 이야기를 들려주세요!
           </div>
         ) : (
-          tweets.map((tweet) => (
-            <TweetCard key={tweet.id} {...tweet} />
-          ))
+          <>
+            {tweets.map((tweet) => (
+              <TweetCard key={tweet.id} {...tweet} />
+            ))}
+            
+            {/* 무한 스크롤 트리거 */}
+            {nextCursor && (
+              <div ref={loadMoreRef} className="p-4 flex justify-center">
+                {isLoadingMore && <LoadingSpinner size="md" />}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
