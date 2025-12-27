@@ -350,7 +350,7 @@ box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 - Avatar
 - Dialog
 - Dropdown Menu
-- Toast (사용자 피드백용)
+- Sonner (Toast 알림용, shadcn/ui를 통해 설치하는 Sonner 래퍼 컴포넌트)
 - 기타 등등
 
 ## 참고 자료

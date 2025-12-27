@@ -221,14 +221,16 @@ Auth.js를 사용한 세션 기반 인증 시스템 구현
 ### 작업 항목
 
 - [ ] Toast 컴포넌트 설치 및 설정
-  - shadcn/ui Toast 컴포넌트 설치
-  - Toast Provider 설정 (root 레이아웃에 추가)
-  - Toast 사용 유틸리티 함수 생성
+  - shadcn/ui Sonner 컴포넌트 설치 (`npx shadcn@latest add sonner`)
+  - Sonner는 독립적인 토스트 라이브러리이며, shadcn/ui는 Sonner를 스타일링한 래퍼 컴포넌트를 제공합니다
+  - shadcn/ui에서 권장하는 Toast 솔루션 (기존 Toast 컴포넌트 대체)
+  - Toaster 컴포넌트를 root 레이아웃에 추가
+  - Toast 사용 유틸리티 함수 생성 (선택사항)
   - **확인 방법**:
-    - `package.json`에 Toast 관련 패키지가 추가되었는지 확인
-    - `app/components/ui/toast.tsx` 파일이 생성되었는지 확인
-    - `app/root.tsx`에 Toast Provider가 추가되었는지 확인
-    - Toast 유틸리티 함수가 정상 동작하는지 테스트
+    - `package.json`에 `sonner` 패키지가 추가되었는지 확인
+    - `app/components/ui/sonner.tsx` 파일이 생성되었는지 확인
+    - `app/root.tsx`에 `<Toaster />` 컴포넌트가 추가되었는지 확인
+    - `toast.success()`, `toast.error()` 등이 정상 동작하는지 테스트
     - 성공/에러 Toast 메시지가 올바르게 표시되는지 확인
 
 - [ ] 메인 레이아웃 컴포넌트
