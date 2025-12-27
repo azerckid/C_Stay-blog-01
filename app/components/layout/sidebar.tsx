@@ -1,4 +1,4 @@
-import { NavLink } from "react-router";
+import { NavLink, useNavigate } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Home01Icon,
@@ -19,7 +19,6 @@ import {
     DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { useNavigate } from "react-router";
 
 const NAV_ITEMS = [
     { label: "홈", href: "/", icon: Home01Icon },
@@ -32,6 +31,29 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
     const { data: session } = useSession();
+    const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        try {
+            console.log("Logout initiated...");
+            await signOut({
+                fetchOptions: {
+                    onSuccess: () => {
+                        console.log("Logout success. Redirecting...");
+                        // useNavigate를 사용하여 SPA 내 전환으로 알림 유실 방지
+                        navigate(`/login?toast=${encodeURIComponent("성공적으로 로그아웃되었습니다.")}`);
+                    },
+                    onError: (ctx) => {
+                        console.error("Logout error context:", ctx);
+                        toast.error("로그아웃에 실패했습니다.");
+                    }
+                }
+            });
+        } catch (error) {
+            console.error("SignOut Exception:", error);
+            toast.error("로그아웃 중 오류가 발생했습니다.");
+        }
+    };
 
     return (
         <aside className="sticky top-0 h-screen flex flex-col justify-between py-4 px-2 xl:px-4 w-fit xl:w-64 border-r border-border bg-background">
@@ -78,42 +100,32 @@ export function Sidebar() {
             {/* User Session Nav */}
             {session?.user && (
                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <button className="flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors w-fit xl:w-full mt-auto outline-none">
-                            <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border">
-                                {session.user.image ? (
-                                    <img src={session.user.image} alt={session.user.name ?? ""} className="h-full w-full object-cover" />
-                                ) : (
-                                    <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="h-6 w-6 text-muted-foreground" />
-                                )}
-                            </div>
-                            <div className="hidden xl:flex flex-col text-left overflow-hidden">
-                                <span className="text-sm font-bold truncate">{session.user.name}</span>
-                                <span className="text-xs text-muted-foreground truncate">@{session.user.email?.split("@")[0]}</span>
-                            </div>
-                            <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-5 w-5 ml-auto hidden xl:block text-muted-foreground" />
-                        </button>
+                    <DropdownMenuTrigger
+                        render={
+                            <button className="flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors w-fit xl:w-full mt-auto outline-none" />
+                        }
+                    >
+                        <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border pointer-events-none">
+                            {session.user.image ? (
+                                <img src={session.user.image} alt={session.user.name ?? ""} className="h-full w-full object-cover" />
+                            ) : (
+                                <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="h-6 w-6 text-muted-foreground" />
+                            )}
+                        </div>
+                        <div className="hidden xl:flex flex-col text-left overflow-hidden pointer-events-none">
+                            <span className="text-sm font-bold truncate">{session.user.name}</span>
+                            <span className="text-xs text-muted-foreground truncate">@{session.user.email?.split("@")[0]}</span>
+                        </div>
+                        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-5 w-5 ml-auto hidden xl:block text-muted-foreground pointer-events-none" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-64 mb-2 p-2">
                         <DropdownMenuItem
                             variant="destructive"
-                            className="p-3 cursor-pointer rounded-lg"
-                            onSelect={async () => {
-                                try {
-                                    await signOut({
-                                        fetchOptions: {
-                                            onSuccess: () => {
-                                                toast.success("로그아웃되었습니다.");
-                                                window.location.href = "/login";
-                                            }
-                                        }
-                                    });
-                                } catch (error) {
-                                    toast.error("로그아웃 중 오류가 발생했습니다.");
-                                }
-                            }}
+                            className="p-3 cursor-pointer rounded-lg font-bold"
+                            onSelect={handleLogout}
+                            onClick={handleLogout}
                         >
-                            <span className="font-bold">@{session.user.email?.split("@")[0]} 계정에서 로그아웃</span>
+                            <span className="truncate">@{session.user.email?.split("@")[0]} 계정에서 로그아웃</span>
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

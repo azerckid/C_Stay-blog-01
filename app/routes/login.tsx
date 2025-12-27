@@ -36,13 +36,14 @@ export default function LoginPage() {
             const { error } = await signIn.email({
                 email: values.email,
                 password: values.password,
-                callbackURL: "/",
             });
 
             if (error) {
                 toast.error(error.message || "로그인에 실패했습니다.");
             } else {
-                toast.success("성공적으로 로그인되었습니다!");
+                // 로컬 스토리지에 성공 메시지 저장 (URL 파라미터 제약 회피)
+                localStorage.setItem("toast-message", "반가워요! 성공적으로 로그인되었습니다.");
+                localStorage.setItem("toast-type", "success");
                 navigate("/");
             }
         } catch (err) {
@@ -54,9 +55,13 @@ export default function LoginPage() {
 
     const handleSocialLogin = async (provider: "google" | "kakao") => {
         try {
+            // 소셜 로그인 전 로컬 스토리지에 메시지 미리 저장
+            localStorage.setItem("toast-message", "반가워요! 성공적으로 로그인되었습니다.");
+            localStorage.setItem("toast-type", "success");
+
             await signIn.social({
                 provider,
-                callbackURL: "/",
+                callbackURL: "/", // 기본 URL 사용
             });
         } catch (err) {
             toast.error(`${provider} 로그인 중 오류가 발생했습니다.`);

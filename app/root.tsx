@@ -5,7 +5,10 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useSearchParams,
 } from "react-router";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -48,6 +51,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    // 1. URL 파라미터 체크 (기존 방식 유지)
+    const toastMsg = searchParams.get("toast");
+    const toastType = searchParams.get("type") || "success";
+
+    // 2. 로컬 스토리지 체크
+    const localToastMsg = typeof window !== "undefined" ? localStorage.getItem("toast-message") : null;
+    const localToastType = typeof window !== "undefined" ? localStorage.getItem("toast-type") || "success" : "success";
+
+    const msg = toastMsg || localToastMsg;
+    const type = toastMsg ? toastType : localToastType;
+
+    if (msg) {
+      // 컴포넌트 마운트 후 아주 약간의 지연을 주어 Toaster가 준비되도록 함
+      const timer = setTimeout(() => {
+        if (type === "success") {
+          toast.success(msg);
+        } else if (type === "error") {
+          toast.error(msg);
+        }
+
+        // 사용 후 정리
+        if (toastMsg) {
+          const newParams = new URLSearchParams(searchParams);
+          newParams.delete("toast");
+          newParams.delete("type");
+          setSearchParams(newParams, { replace: true });
+        }
+
+        if (localToastMsg) {
+          localStorage.removeItem("toast-message");
+          localStorage.removeItem("toast-type");
+        }
+      }, 50);
+
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, setSearchParams]);
+
   return <Outlet />;
 }
 
