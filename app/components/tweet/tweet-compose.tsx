@@ -3,13 +3,14 @@ import { Image01Icon, AiBrain01Icon, Location01Icon, Calendar03Icon } from "@hug
 import { useSession } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 import { useState, useEffect } from "react";
-import { useFetcher } from "react-router";
+import { useFetcher, useRevalidator } from "react-router";
 import { toast } from "sonner";
 
 export function TweetCompose() {
     const { data: session } = useSession();
     const [content, setContent] = useState("");
     const fetcher = useFetcher();
+    const revalidator = useRevalidator();
 
     // fetcher의 상태 변화를 감시하여 결과 처리
     useEffect(() => {
@@ -18,6 +19,7 @@ export function TweetCompose() {
             if (result.success) {
                 toast.success("트윗이 게시되었습니다!");
                 setContent("");
+                revalidator.revalidate(); // 데이터 갱신 트리거
             } else if (result.error) {
                 toast.error(result.error);
             }

@@ -6,6 +6,7 @@ export default [
     ]),
     route("api/auth/*", "routes/api.auth.ts", { id: "api-auth" }),
     route("api/tweets", "routes/api.tweets.ts"),
+    route("tweet/:tweetId", "routes/tweet.$tweetId.tsx"),
     route("auth/google/callback", "routes/api.auth.ts", { id: "google-callback" }),
     route("auth/kakao/callback", "routes/api.auth.ts", { id: "kakao-callback" }),
     route("login", "routes/login.tsx"),

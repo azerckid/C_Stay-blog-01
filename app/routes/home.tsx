@@ -7,9 +7,53 @@ import { Settings01Icon } from "@hugeicons/core-free-icons";
 import { TweetCompose } from "~/components/tweet/tweet-compose";
 import { TweetCard } from "~/components/tweet/tweet-card";
 
+import { prisma } from "~/lib/prisma.server";
+import { DateTime } from "luxon";
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const session = await getSession(request);
-  return { session };
+
+  const tweets = await prisma.tweet.findMany({
+    take: 20,
+    orderBy: { createdAt: "desc" },
+    include: {
+      user: true,
+      _count: {
+        select: {
+          likes: true,
+          replies: true,
+          retweets: true,
+        }
+      }
+    }
+  });
+
+  const formattedTweets = tweets.map(tweet => ({
+    id: tweet.id,
+    content: tweet.content,
+    createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+    fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+    user: {
+      id: tweet.user.id,
+      name: tweet.user.name || "알 수 없음",
+      username: tweet.user.email.split("@")[0],
+      image: tweet.user.image,
+    },
+    stats: {
+      likes: tweet._count.likes,
+      replies: tweet._count.replies,
+      retweets: tweet._count.retweets,
+      views: "0",
+    },
+    location: tweet.locationName ? {
+      name: tweet.locationName,
+      city: tweet.city,
+      country: tweet.country,
+      travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
+    } : undefined
+  }));
+
+  return { session, tweets: formattedTweets };
 }
 
 export function meta({ }: MetaFunction) {
@@ -19,33 +63,9 @@ export function meta({ }: MetaFunction) {
   ];
 }
 
-const MOCK_TWEETS = [
-  {
-    id: "1",
-    user: { name: "여행전문가", username: "traveler_1", image: null },
-    content: "이번 주말에 다녀온 제주도 여행 사진입니다! 날씨가 정말 좋았어요. 🌊☀️",
-    createdAt: "2시간 전",
-    stats: { replies: 12, retweets: 45, likes: 120, views: "1.2K" },
-    media: [{ type: "IMAGE" as const, url: "/mock-image.jpg" }]
-  },
-  {
-    id: "2",
-    user: { name: "맛집탐방가", username: "foodie_jeju", image: null },
-    content: "서귀포에서 찾은 인생 흑돼지집... 고기 질이 장난 아니네요. 추천합니다!",
-    createdAt: "5시간 전",
-    stats: { replies: 8, retweets: 23, likes: 89, views: "850" }
-  },
-  {
-    id: "3",
-    user: { name: "STAYnC 공식", username: "staync_official", image: null },
-    content: "STAYnC 베타 테스트에 참여해 주셔서 감사합니다. 여러분의 소중한 여행 경험을 공유해 주세요!",
-    createdAt: "1일 전",
-    stats: { replies: 56, retweets: 112, likes: 432, views: "5.4K" }
-  }
-];
 
 export default function Home() {
-  const { session: serverSession } = useLoaderData<typeof loader>();
+  const { session: serverSession, tweets } = useLoaderData<typeof loader>();
   const { data: clientSession } = useSession();
 
   const session = clientSession || serverSession;
@@ -76,9 +96,15 @@ export default function Home() {
 
       {/* Feed List */}
       <div className="flex flex-col">
-        {MOCK_TWEETS.map((tweet) => (
-          <TweetCard key={tweet.id} {...tweet} />
-        ))}
+        {tweets.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground">
+            아직 작성된 트윗이 없습니다. 첫 번째 이야기를 들려주세요!
+          </div>
+        ) : (
+          tweets.map((tweet) => (
+            <TweetCard key={tweet.id} {...tweet} />
+          ))
+        )}
       </div>
     </div>
   );

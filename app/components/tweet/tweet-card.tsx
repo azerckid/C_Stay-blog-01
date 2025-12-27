@@ -5,18 +5,33 @@ import {
     FavouriteIcon,
     ViewIcon,
     Share01Icon,
-    MoreHorizontalIcon
+    MoreHorizontalIcon,
+    Delete02Icon,
+    PencilEdit02Icon
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
+import { useSession } from "~/lib/auth-client";
+import { useFetcher } from "react-router";
+import { toast } from "sonner";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { useEffect } from "react";
 
 interface TweetCardProps {
+    id?: string;
     user: {
+        id?: string; // 작성자 ID 추가
         name: string;
         username: string;
         image?: string | null;
     };
     content: string;
     createdAt: string;
+    fullCreatedAt?: string;
     stats?: {
         replies: number;
         retweets: number;
@@ -29,34 +44,99 @@ interface TweetCardProps {
     }[];
 }
 
-export function TweetCard({ user, content, createdAt, stats, media }: TweetCardProps) {
+import { useNavigate } from "react-router";
+
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, media }: TweetCardProps) {
+    const navigate = useNavigate();
+    const { data: session } = useSession();
+    const fetcher = useFetcher();
+
+    const isOwner = session?.user?.id === user.id;
+
+    const handleDelete = () => {
+        if (!confirm("정말로 이 트윗을 삭제하시겠습니까?")) return;
+
+        if (id) {
+            fetcher.submit({ tweetId: id }, { method: "DELETE", action: "/api/tweets" });
+        }
+    };
+
+    const handleEdit = () => {
+        toast.info("수정 기능은 준비 중입니다.");
+    };
+
+    useEffect(() => {
+        if (fetcher.state === "idle" && fetcher.data) {
+            const result = fetcher.data as any;
+            if (result.success) {
+                toast.success("트윗이 삭제되었습니다.");
+                // 상세 페이지라면 뒤로가기, 목록이라면 자동 갱신됨 (useRevalidator 상위에서 처리 권장)
+            } else if (result.error) {
+                toast.error(result.error);
+            }
+        }
+    }, [fetcher.state, fetcher.data]);
+
+    const handleClick = () => {
+        if (id) {
+            navigate(`/tweet/${id}`);
+        }
+    };
+
     return (
-        <div className="p-4 border-b border-border hover:bg-accent/20 transition-colors cursor-pointer flex gap-3 group/card">
-            {/* Avatar */}
-            <div className="h-10 w-10 rounded-full bg-secondary flex-shrink-0 border border-border overflow-hidden">
-                {user.image ? (
-                    <img src={user.image} alt={user.name} className="h-full w-full object-cover" />
-                ) : (
-                    <div className="h-full w-full flex items-center justify-center text-muted-foreground font-bold">
-                        {user.name[0]}
-                    </div>
-                )}
+        <div
+            onClick={handleClick}
+            className="p-4 border-b border-border hover:bg-accent/20 transition-colors cursor-pointer flex gap-3 group/card"
+        >
+            {/* Left Column: Avatar */}
+            <div className="flex-shrink-0 mr-3">
+                <div className="h-10 w-10 rounded-full bg-secondary border border-border overflow-hidden">
+                    {user.image ? (
+                        <img src={user.image} alt={user.name} className="h-full w-full object-cover" />
+                    ) : (
+                        <div className="h-full w-full flex items-center justify-center text-muted-foreground font-bold">
+                            {user.name[0]}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+            {/* Right Column: Content & Actions */}
+            <div className="flex-1 min-w-0 flex flex-col">
+
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 overflow-hidden">
                         <span className="font-bold hover:underline truncate">{user.name}</span>
                         <span className="text-muted-foreground text-sm truncate">@{user.username}</span>
-                        <span className="text-muted-foreground text-sm flex-shrink-0">· {createdAt}</span>
+                        <span
+                            className="text-muted-foreground text-sm flex-shrink-0 cursor-help"
+                            title={fullCreatedAt}
+                        >
+                            · {createdAt}
+                        </span>
                     </div>
-                    <button className="p-2 -mr-2 hover:bg-primary/10 hover:text-primary rounded-full transition-colors text-muted-foreground">
-                        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-4.5 w-4.5" />
-                    </button>
+                    {isOwner && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="p-2 -mr-2 hover:bg-primary/10 hover:text-primary rounded-full transition-colors text-muted-foreground outline-none">
+                                    <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-4.5 w-4.5" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={handleEdit}>
+                                        <HugeiconsIcon icon={PencilEdit02Icon} className="mr-2 h-4 w-4" />
+                                        수정하기
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
+                                        <HugeiconsIcon icon={Delete02Icon} className="mr-2 h-4 w-4" />
+                                        삭제하기
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )}
                 </div>
 
-                <p className="text-[15px] leading-normal break-words whitespace-pre-wrap">
+                <p className="text-[15px] leading-normal break-words whitespace-pre-wrap mt-1">
                     {content}
                 </p>
 
@@ -71,7 +151,7 @@ export function TweetCard({ user, content, createdAt, stats, media }: TweetCardP
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex items-center justify-between mt-3 -ml-2 text-muted-foreground max-w-md">
+                <div className="flex items-center justify-between mt-3 text-muted-foreground w-full max-w-md">
                     <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3">
                         <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
                             <HugeiconsIcon icon={Comment01Icon} strokeWidth={2} className="h-4.5 w-4.5" />
