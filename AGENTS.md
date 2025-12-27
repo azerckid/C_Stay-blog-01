@@ -16,7 +16,7 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
 - **Framework**: React Router v7 (Vite)
 - **Styling**: Tailwind CSS v4, shadcn/ui (Nova Preset)
 - **Database**: Turso (libSQL) with Prisma ORM
-- **Authentication**: Auth.js (session-based authentication)
+- **Authentication**: Better Auth (session-based authentication)
 - **Validation**: Zod (schema validation)
 - **Date/Time**: Luxon (date and time handling)
 - **Media Storage**: Cloudinary (for image and video uploads)
@@ -37,6 +37,9 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
   - Info: General information messages
   - Warning: Cautionary messages
 - Git commit messages must follow Conventional Commits in Korean (e.g., `feat(ui): 로그인 기능 추가`).
+
+## Workflow & Safety
+- **[Safe Checkpoint Strategy]** 새로운 작업이나 중요한 변경(새 파일 생성, DB 스키마 수정, 패키지 설치 등)을 시작하기 전에, 반드시 현재 상태를 git commit하거나 작업 디렉토리가 깨끗한지 확인을 요청해야 합니다.
 
 ## Communication Rules
 - **[No Emojis]** 사용자와의 모든 채팅 대화에서 이모지(Emoji) 및 이모티콘(Emoticon) 사용을 전면 금지합니다. 텍스트와 코드만으로 명확하게 정보를 전달하십시오.
