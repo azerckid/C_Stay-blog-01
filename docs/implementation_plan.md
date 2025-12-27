@@ -64,18 +64,48 @@ Prisma ORM 설정 및 데이터베이스 스키마 정의
     - TypeScript 컴파일 오류가 없는지 확인 (`npm run typecheck`)
 
 - [ ] 트위터 클론 필수 테이블 추가
-  - `Tweet` 모델 및 마이그레이션 (자기 참조 관계 포함: `parent`/`children` for replies)
+  - `Tweet` 모델 및 마이그레이션
+    - 기본 필드: id, userId, content, createdAt, updatedAt
+    - `parentId`: 답글을 위한 자기 참조 (Self-referencing, nullable)
+    - `isRetweet`, `originalTweetId`: 리트윗 관련 필드 (선택적)
+    - `deletedAt`: Soft Delete 지원 (nullable)
+    - 관계: User (Many-to-One), parent Tweet (Self-referencing), children replies
   - `Media` 모델 및 마이그레이션 (Tweet과 1:N 관계)
+    - 필드: id, tweetId, type (IMAGE/VIDEO), url, thumbnailUrl, altText, order, createdAt
+    - 관계: Tweet (Many-to-One)
   - `Like` 모델 및 마이그레이션
+    - 필드: id, userId, tweetId, createdAt
+    - UNIQUE 제약조건: (userId, tweetId) - 중복 좋아요 방지
+    - 관계: User, Tweet (Many-to-One)
   - `Retweet` 모델 및 마이그레이션
+    - 필드: id, userId, tweetId, createdAt
+    - UNIQUE 제약조건: (userId, tweetId) - 중복 리트윗 방지
+    - 관계: User, Tweet (Many-to-One)
+    - *참고: 별도 테이블로 관리하거나 Tweet 테이블에 통합할 수 있음*
   - `Follow` 모델 및 마이그레이션
-  - `Bookmark` 모델 (선택사항)
+    - 필드: id, followerId, followingId, createdAt
+    - UNIQUE 제약조건: (followerId, followingId) - 중복 팔로우 방지
+    - 자기 자신 팔로우 방지 검증 (애플리케이션 레벨)
+    - 관계: User (follower, following, Many-to-One)
+  - `Bookmark` 모델 및 마이그레이션 (선택사항)
+    - 필드: id, userId, tweetId, createdAt
+    - UNIQUE 제약조건: (userId, tweetId) - 중복 북마크 방지
+    - 관계: User, Tweet (Many-to-One)
+  - 인덱스 추가
+    - Tweet: userId, parentId, createdAt, deletedAt 인덱스
+    - Media: tweetId, (tweetId, order) 복합 인덱스
+    - Like/Retweet/Bookmark: userId, tweetId, (userId, tweetId) 복합 인덱스
+    - Follow: followerId, followingId, (followerId, followingId) 복합 인덱스
   - **확인 방법**:
     - `schema.prisma`에 모든 모델이 정의되었는지 확인
-    - `Tweet` 모델이 자기 자신을 참조하는 `replies` 필드를 가지고 있는지 확인
+    - `Tweet` 모델에 `parentId` 필드가 있고 자기 참조 관계가 설정되었는지 확인
+    - `Tweet` 모델에 `deletedAt` 필드가 추가되었는지 확인 (Soft Delete)
     - `Media` 모델이 `Tweet`과 올바르게 연결되어 있는지 확인
+    - 각 모델에 UNIQUE 제약조건이 올바르게 설정되었는지 확인
+    - 인덱스가 Prisma 스키마에 정의되었는지 확인 (`@@index`)
     - 마이그레이션 파일이 `prisma/migrations/`에 생성되었는지 확인
     - `npx prisma migrate dev` 실행 시 오류가 없는지 확인
+    - Prisma Studio에서 테이블과 관계가 올바르게 생성되었는지 확인
 
 - [ ] Prisma Client 생성 및 테스트
   - `npx prisma generate`

@@ -99,25 +99,122 @@
 다음 테이블들은 트위터 클론 기능을 위해 새로 추가해야 합니다:
 
 1. **`Tweet`** (또는 `Post`) - 트윗/게시물
-   - id, userId, content, createdAt, updatedAt
-   - **`parentId`**: 답글일 경우 원본 트윗의 ID (Self-referencing)
-   - **`isRetweet`**, **`originalTweetId`**: 리트윗 여부 및 원본 ID (선택적)
+   ```sql
+   CREATE TABLE "Tweet" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "userId" TEXT NOT NULL,
+       "content" TEXT NOT NULL,
+       "parentId" TEXT,  -- 답글일 경우 원본 트윗의 ID (Self-referencing)
+       "isRetweet" BOOLEAN NOT NULL DEFAULT false,  -- 리트윗 여부 (선택적)
+       "originalTweetId" TEXT,  -- 리트윗일 경우 원본 트윗 ID (선택적)
+       "deletedAt" DATETIME,  -- Soft Delete (선택사항)
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       "updatedAt" DATETIME NOT NULL,
+       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       FOREIGN KEY ("parentId") REFERENCES "Tweet" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       FOREIGN KEY ("originalTweetId") REFERENCES "Tweet" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+   );
+   
+   -- 인덱스
+   CREATE INDEX "Tweet_userId_idx" ON "Tweet"("userId");
+   CREATE INDEX "Tweet_parentId_idx" ON "Tweet"("parentId");
+   CREATE INDEX "Tweet_createdAt_idx" ON "Tweet"("createdAt" DESC);
+   CREATE INDEX "Tweet_deletedAt_idx" ON "Tweet"("deletedAt") WHERE "deletedAt" IS NULL;
+   ```
 
 2. **`Media`** - 트윗에 첨부된 미디어 (이미지/동영상)
-   - id, tweetId, type (IMAGE, VIDEO), url, thumbnailUrl, altText, order, createdAt
+   ```sql
+   CREATE TABLE "Media" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "tweetId" TEXT NOT NULL,
+       "type" TEXT NOT NULL,  -- 'IMAGE' 또는 'VIDEO'
+       "url" TEXT NOT NULL,
+       "thumbnailUrl" TEXT,
+       "altText" TEXT,
+       "order" INTEGER NOT NULL DEFAULT 0,
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY ("tweetId") REFERENCES "Tweet" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+   );
+   
+   -- 인덱스
+   CREATE INDEX "Media_tweetId_idx" ON "Media"("tweetId");
+   CREATE INDEX "Media_tweetId_order_idx" ON "Media"("tweetId", "order");
+   ```
 
 3. **`Like`** - 좋아요
-   - id, userId, tweetId, createdAt
+   ```sql
+   CREATE TABLE "Like" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "userId" TEXT NOT NULL,
+       "tweetId" TEXT NOT NULL,
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       FOREIGN KEY ("tweetId") REFERENCES "Tweet" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       UNIQUE("userId", "tweetId")  -- 중복 좋아요 방지
+   );
+   
+   -- 인덱스
+   CREATE INDEX "Like_userId_idx" ON "Like"("userId");
+   CREATE INDEX "Like_tweetId_idx" ON "Like"("tweetId");
+   CREATE INDEX "Like_userId_tweetId_idx" ON "Like"("userId", "tweetId");
+   ```
 
 4. **`Retweet`** (또는 `Repost`) - 리트윗
-   - id, userId, tweetId, createdAt
-   - *참고: 단순 리트윗은 별도 테이블로 관리하거나, Tweet 테이블에 포함할 수 있음. 현재는 별도 테이블 유지 또는 Tweet 테이블 통합 고려.*
+   ```sql
+   CREATE TABLE "Retweet" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "userId" TEXT NOT NULL,
+       "tweetId" TEXT NOT NULL,
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       FOREIGN KEY ("tweetId") REFERENCES "Tweet" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       UNIQUE("userId", "tweetId")  -- 중복 리트윗 방지
+   );
+   
+   -- 인덱스
+   CREATE INDEX "Retweet_userId_idx" ON "Retweet"("userId");
+   CREATE INDEX "Retweet_tweetId_idx" ON "Retweet"("tweetId");
+   CREATE INDEX "Retweet_userId_tweetId_idx" ON "Retweet"("userId", "tweetId");
+   ```
+   *참고: 단순 리트윗은 별도 테이블로 관리하거나, Tweet 테이블에 포함할 수 있음. 현재는 별도 테이블 유지 또는 Tweet 테이블 통합 고려.*
 
 5. **`Follow`** - 팔로우 관계
-   - id, followerId, followingId, createdAt
+   ```sql
+   CREATE TABLE "Follow" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "followerId" TEXT NOT NULL,  -- 팔로우하는 사용자
+       "followingId" TEXT NOT NULL,  -- 팔로우받는 사용자
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY ("followerId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       FOREIGN KEY ("followingId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       UNIQUE("followerId", "followingId"),  -- 중복 팔로우 방지
+       CHECK("followerId" != "followingId")  -- 자기 자신 팔로우 방지 (libSQL에서 지원하는 경우)
+   );
+   
+   -- 인덱스
+   CREATE INDEX "Follow_followerId_idx" ON "Follow"("followerId");
+   CREATE INDEX "Follow_followingId_idx" ON "Follow"("followingId");
+   CREATE INDEX "Follow_followerId_followingId_idx" ON "Follow"("followerId", "followingId");
+   ```
+   *참고: 자기 자신 팔로우 방지는 애플리케이션 레벨에서도 검증해야 합니다.*
 
 6. **`Bookmark`** - 북마크 (선택사항)
-   - id, userId, tweetId, createdAt
+   ```sql
+   CREATE TABLE "Bookmark" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "userId" TEXT NOT NULL,
+       "tweetId" TEXT NOT NULL,
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       FOREIGN KEY ("tweetId") REFERENCES "Tweet" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       UNIQUE("userId", "tweetId")  -- 중복 북마크 방지
+   );
+   
+   -- 인덱스
+   CREATE INDEX "Bookmark_userId_idx" ON "Bookmark"("userId");
+   CREATE INDEX "Bookmark_tweetId_idx" ON "Bookmark"("tweetId");
+   CREATE INDEX "Bookmark_userId_tweetId_idx" ON "Bookmark"("userId", "tweetId");
+   ```
 
 *참고: `Reply` 테이블은 `Tweet` 테이블의 자기 참조(`parentId`)로 통합하여 관리합니다.*
 
@@ -159,6 +256,67 @@ datasource db {
 - 개발 환경: `npx prisma migrate dev`
 - 프로덕션: `npx prisma migrate deploy`
 - 마이그레이션 히스토리 확인: `npx prisma migrate status`
+
+## 성능 최적화 및 제약조건
+
+### 인덱스 전략
+
+위의 테이블 정의에 포함된 인덱스들은 다음과 같은 쿼리 패턴을 최적화합니다:
+
+- **Tweet 테이블**:
+  - `userId`: 사용자별 트윗 조회
+  - `parentId`: 답글 조회
+  - `createdAt`: 시간순 정렬
+  - `deletedAt`: Soft Delete된 트윗 제외 (WHERE 조건 최적화)
+
+- **Media 테이블**:
+  - `tweetId`: 트윗별 미디어 조회
+  - `tweetId, order`: 순서대로 미디어 조회
+
+- **Like, Retweet, Bookmark 테이블**:
+  - `userId`: 사용자별 좋아요/리트윗/북마크 조회
+  - `tweetId`: 트윗별 좋아요/리트윗/북마크 개수 조회
+  - 복합 인덱스: 사용자가 특정 트윗에 좋아요/리트윗/북마크했는지 확인
+
+- **Follow 테이블**:
+  - `followerId`: 팔로워 목록 조회
+  - `followingId`: 팔로잉 목록 조회
+  - 복합 인덱스: 팔로우 관계 확인
+
+### 제약조건
+
+1. **UNIQUE 제약조건**:
+   - `Like(userId, tweetId)`: 중복 좋아요 방지
+   - `Retweet(userId, tweetId)`: 중복 리트윗 방지
+   - `Bookmark(userId, tweetId)`: 중복 북마크 방지
+   - `Follow(followerId, followingId)`: 중복 팔로우 방지
+
+2. **FOREIGN KEY 제약조건**:
+   - 모든 외래키는 CASCADE DELETE로 설정 (부모 삭제 시 자식도 삭제)
+   - `Tweet.originalTweetId`는 SET NULL (원본 트윗 삭제 시 리트윗은 유지)
+
+3. **애플리케이션 레벨 제약조건**:
+   - 자기 자신 팔로우 방지: `Follow` 테이블에서 `followerId != followingId` 검증
+   - 트윗 내용 최대 길이 제한 (예: 280자)
+   - 미디어 개수 제한 (예: 트윗당 최대 4개)
+
+### Soft Delete
+
+`Tweet` 테이블에 `deletedAt` 필드를 추가하여 논리 삭제를 지원합니다:
+
+- `deletedAt`이 NULL이면 활성 트윗
+- `deletedAt`이 설정되면 삭제된 트윗 (표시하지 않음)
+- 물리 삭제 대신 논리 삭제로 데이터 히스토리 보존
+- 쿼리 시 `WHERE deletedAt IS NULL` 조건 추가
+
+**장점:**
+- 삭제된 트윗의 좋아요, 댓글 등 관련 데이터 보존
+- 복구 가능
+- 감사(Audit) 목적
+
+**고려사항:**
+- 모든 트윗 조회 쿼리에 `WHERE deletedAt IS NULL` 조건 필요
+- 인덱스를 활용하여 성능 최적화
 
 ## 데이터베이스 연결 정보
 
