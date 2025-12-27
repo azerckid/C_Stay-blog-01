@@ -1,14 +1,238 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
+}
+
+// --- 1. 기존 공유 테이블 (기존 구조 엄격 준수) ---
+
+model User {
+  id            String   @id
+  email         String   @unique
+  password      String?
+  name          String?
+  image         String?
+  provider      String   @default("local")
+  snsId         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  emailVerified Boolean  @default(false)
+  avatarUrl     String?
+  status        String   @default("OFFLINE")
+
+  // 관계 설정
+  accounts   Account[]
+  sessions   Session[]
+  tweets     Tweet[]
+  likes      Like[]
+  retweets   Retweet[]
+  followedBy Follow[]   @relation("following")
+  following  Follow[]   @relation("follower")
+  bookmarks  Bookmark[]
+
+  @@map("User")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@map("verification")
+}
+
+// --- 2. 트위터 클론 신규 테이블 ---
+
+model Tweet {
+  id              String    @id @default(cuid())
+  userId          String
+  content         String
+  parentId        String?
+  isRetweet       Boolean   @default(false)
+  originalTweetId String?
+  deletedAt       DateTime?
+
+  // 여행 특화 필드
+  locationName String?
+  latitude     Float?
+  longitude    Float?
+  address      String?
+  travelDate   DateTime?
+  country      String?
+  city         String?
+  travelPlanId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 답글 관계
+  parent  Tweet?  @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Tweet[] @relation("Replies")
+
+  // 리트윗 관계 (원본 트윗 연결)
+  originalTweet Tweet?  @relation("Retweets", fields: [originalTweetId], references: [id], onDelete: SetNull)
+  retweetedIn   Tweet[] @relation("Retweets")
+
+  media     Media[]
+  likes     Like[]
+  retweets  Retweet[]
+  bookmarks Bookmark[]
+  tags      TweetTravelTag[]
+
+  @@index([userId])
+  @@index([parentId])
+  @@index([createdAt(sort: Desc)])
+  @@index([deletedAt])
+  @@index([country, city])
+  @@index([travelDate(sort: Desc)])
+  @@index([latitude, longitude])
+  @@map("Tweet")
+}
+
+model Media {
+  id           String   @id @default(cuid())
+  tweetId      String
+  type         String // 'IMAGE' 또는 'VIDEO'
+  url          String
+  thumbnailUrl String?
+  altText      String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@index([tweetId])
+  @@index([tweetId, order])
+  @@map("Media")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  tweetId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tweetId])
+  @@index([userId])
+  @@index([tweetId])
+  @@map("Like")
+}
+
+model Retweet {
+  id        String   @id @default(cuid())
+  userId    String
+  tweetId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tweetId])
+  @@index([userId])
+  @@index([tweetId])
+  @@map("Retweet")
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("Follow")
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  tweetId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tweetId])
+  @@index([userId])
+  @@index([tweetId])
+  @@map("Bookmark")
+}
+
+model TravelTag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  tweetTags TweetTravelTag[]
+
+  @@index([slug])
+  @@map("TravelTag")
+}
+
+model TweetTravelTag {
+  id          String   @id @default(cuid())
+  tweetId     String
+  travelTagId String
+  createdAt   DateTime @default(now())
+
+  tweet     Tweet     @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  travelTag TravelTag @relation(fields: [travelTagId], references: [id], onDelete: Cascade)
+
+  @@unique([tweetId, travelTagId])
+  @@index([tweetId])
+  @@index([travelTagId])
+  @@map("TweetTravelTag")
 }

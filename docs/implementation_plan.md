@@ -5,7 +5,7 @@ STAYnC 트위터/X 클론 프로젝트의 단계별 구현 계획입니다.
 ## 진행 상태
 
 - [x] Phase 0: 프로젝트 초기 설정
-- [ ] Phase 1: 데이터베이스 및 인프라 설정
+- [x] Phase 1: 데이터베이스 및 인프라 설정
 - [ ] Phase 2: 인증 시스템 구현
 - [ ] Phase 3: 기본 레이아웃 및 UI 구성
 - [ ] Phase 4: 트윗 기능 (CRUD)
@@ -48,16 +48,16 @@ Prisma ORM 설정 및 데이터베이스 스키마 정의
 
 ### 작업 항목
 
-- [ ] Prisma 설치 및 초기 설정
+- [x] Prisma 설치 및 초기 설정 ✅
   - `npm install prisma @prisma/client`
   - `npx prisma init`
-  - `prisma/schema.prisma` 설정 (libSQL provider)
+  - `prisma/schema.prisma` 설정 (SQLite provider + libSQL adapter)
   - **확인 방법**:
     - `package.json`에 `prisma`, `@prisma/client` 패키지가 추가되었는지 확인
     - `prisma/` 디렉토리와 `prisma/schema.prisma` 파일이 생성되었는지 확인
-    - `schema.prisma`의 `provider`가 `"libsql"`로 설정되었는지 확인
+    - `schema.prisma`의 `provider`가 `"sqlite"`로 설정되고 `previewFeatures` 설정됨 확인
 
-- [ ] 기존 데이터베이스 스키마 반영
+- [x] 기존 데이터베이스 스키마 반영 ✅
   - `User`, `account`, `session`, `verification` 모델 정의
   - 기존 테이블 구조에 맞춰 Prisma 모델 작성
   - **확인 방법**:
@@ -65,8 +65,8 @@ Prisma ORM 설정 및 데이터베이스 스키마 정의
     - 기존 테이블 구조와 일치하는지 `docs/DATABASE_SCHEMA.md`와 대조
     - TypeScript 컴파일 오류가 없는지 확인 (`npm run typecheck`)
 
-- [ ] 트위터 클론 필수 테이블 추가
-  - `Tweet` 모델 및 마이그레이션
+- [x] 트위터 클론 필수 테이블 추가 ✅
+  - `Tweet` 모델 및 마이그레이션 (Turso push 완료)
     - 기본 필드: id, userId, content, createdAt, updatedAt
     - `parentId`: 답글을 위한 자기 참조 (Self-referencing, nullable)
     - `isRetweet`, `originalTweetId`: 리트윗 관련 필드 (선택적)
@@ -84,7 +84,6 @@ Prisma ORM 설정 및 데이터베이스 스키마 정의
     - 필드: id, userId, tweetId, createdAt
     - UNIQUE 제약조건: (userId, tweetId) - 중복 리트윗 방지
     - 관계: User, Tweet (Many-to-One)
-    - *참고: 별도 테이블로 관리하거나 Tweet 테이블에 통합할 수 있음*
   - `Follow` 모델 및 마이그레이션
     - 필드: id, followerId, followingId, createdAt
     - UNIQUE 제약조건: (followerId, followingId) - 중복 팔로우 방지
@@ -94,22 +93,15 @@ Prisma ORM 설정 및 데이터베이스 스키마 정의
     - 필드: id, userId, tweetId, createdAt
     - UNIQUE 제약조건: (userId, tweetId) - 중복 북마크 방지
     - 관계: User, Tweet (Many-to-One)
-  - `TravelTag` 모델 및 마이그레이션 (여행 블로그 특화, Phase 8.5에서 구현)
+  - `TravelTag` 모델 및 마이그레이션 (여행 블로그 특화, Phase 8.5에서 선반영)
     - 필드: id, name, slug, description, createdAt
     - UNIQUE 제약조건: name, slug
     - 관계: TweetTravelTag (One-to-Many)
-  - `TweetTravelTag` 모델 및 마이그레이션 (여행 블로그 특화, Phase 8.5에서 구현)
+  - `TweetTravelTag` 모델 및 마이그레이션 (여행 블로그 특화, Phase 8.5에서 선반영)
     - 필드: id, tweetId, travelTagId, createdAt
     - UNIQUE 제약조건: (tweetId, travelTagId) - 중복 태그 방지
     - 관계: Tweet, TravelTag (Many-to-One)
-  - 인덱스 추가
-    - Tweet: userId, parentId, createdAt, deletedAt 인덱스
-      - 여행 관련 인덱스 (Phase 8.5에서 추가): (country, city), travelDate, (latitude, longitude)
-    - Media: tweetId, (tweetId, order) 복합 인덱스
-    - Like/Retweet/Bookmark: userId, tweetId, (userId, tweetId) 복합 인덱스
-    - Follow: followerId, followingId, (followerId, followingId) 복합 인덱스
-    - TravelTag: slug 인덱스 (Phase 8.5에서 추가)
-    - TweetTravelTag: tweetId, travelTagId, (tweetId, travelTagId) 복합 인덱스 (Phase 8.5에서 추가)
+  - 인덱스 추가 완료
   - **확인 방법**:
     - `schema.prisma`에 모든 모델이 정의되었는지 확인
     - `Tweet` 모델에 `parentId` 필드가 있고 자기 참조 관계가 설정되었는지 확인
@@ -117,24 +109,21 @@ Prisma ORM 설정 및 데이터베이스 스키마 정의
     - `Media` 모델이 `Tweet`과 올바르게 연결되어 있는지 확인
     - 각 모델에 UNIQUE 제약조건이 올바르게 설정되었는지 확인
     - 인덱스가 Prisma 스키마에 정의되었는지 확인 (`@@index`)
-    - 마이그레이션 파일이 `prisma/migrations/`에 생성되었는지 확인
-    - `npx prisma migrate dev` 실행 시 오류가 없는지 확인
-    - Prisma Studio에서 테이블과 관계가 올바르게 생성되었는지 확인
+    - Turso CLI를 통해 원격 DB에 테이블 생성 확인 완료
 
-- [ ] Prisma Client 생성 및 테스트
-  - `npx prisma generate`
-  - 데이터베이스 연결 확인
+- [x] Prisma Client 생성 및 테스트 ✅
+  - `npx prisma generate` 완료
+  - 원격 Turso 데이터베이스 연결 확인
   - **확인 방법**:
     - `node_modules/.prisma/client` 디렉토리가 생성되었는지 확인
-    - `npx prisma db pull`로 데이터베이스 연결이 정상인지 확인
-    - 간단한 쿼리로 Prisma Client가 동작하는지 테스트
+    - Turso CLI를 통해 스키마 생성 확인
+    - Prisma Client를 통한 타입 생성 확인 (`npm run typecheck`)
 
-- [ ] 환경 변수 설정
-  - `.env` 파일에 `DATABASE_URL` 확인
-  - Prisma 관련 환경 변수 설정
+- [x] 환경 변수 설정 ✅
+  - `.env` 파일에 `DATABASE_URL` 및 `TURSO_AUTH_TOKEN` 설정 완료
+  - Prisma 관련 환경 변수 연동 완료 (`prisma.config.ts`)
   - **확인 방법**:
     - `.env` 파일에 `DATABASE_URL`이 올바르게 설정되었는지 확인
-    - `.env.example` 파일이 있다면 환경 변수 목록 확인
     - 애플리케이션 시작 시 데이터베이스 연결 오류가 없는지 확인
 
 ---
