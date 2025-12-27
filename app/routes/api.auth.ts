@@ -1,7 +1,7 @@
 import { auth } from "~/lib/auth";
-import type { Route } from "./+types/api.auth";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request }: ActionFunctionArgs) {
     const url = new URL(request.url);
     // 사용자 지정 콜백 주소를 Better Auth 표준 주소로 리라이트
     if (url.pathname === "/auth/google/callback") {
@@ -15,7 +15,7 @@ export async function action({ request }: Route.ActionArgs) {
     return auth.handler(newRequest);
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request }: LoaderFunctionArgs) {
     const url = new URL(request.url);
     // 사용자 지정 콜백 주소를 Better Auth 표준 주소로 리라이트
     if (url.pathname === "/auth/google/callback") {
