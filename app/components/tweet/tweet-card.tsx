@@ -19,7 +19,17 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { useEffect } from "react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogClose
+} from "~/components/ui/dialog";
+import { Button } from "~/components/ui/button";
+import { Textarea } from "~/components/ui/textarea";
+import { useState, useEffect } from "react";
 
 interface TweetCardProps {
     id?: string;
@@ -50,6 +60,8 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const navigate = useNavigate();
     const { data: session } = useSession();
     const fetcher = useFetcher();
+    const [isEditing, setIsEditing] = useState(false);
+    const [editContent, setEditContent] = useState(content);
 
     const isOwner = session?.user?.id === user.id;
 
@@ -62,15 +74,33 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     };
 
     const handleEdit = () => {
-        toast.info("수정 기능은 준비 중입니다.");
+        setEditContent(content);
+        setIsEditing(true);
+    };
+
+    const handleUpdate = () => {
+        if (!id) return;
+        if (!editContent.trim()) {
+            toast.error("내용을 입력해주세요.");
+            return;
+        }
+
+        fetcher.submit(
+            { tweetId: id, content: editContent },
+            { method: "PATCH", action: "/api/tweets" }
+        );
     };
 
     useEffect(() => {
         if (fetcher.state === "idle" && fetcher.data) {
             const result = fetcher.data as any;
             if (result.success) {
-                toast.success("트윗이 삭제되었습니다.");
-                // 상세 페이지라면 뒤로가기, 목록이라면 자동 갱신됨 (useRevalidator 상위에서 처리 권장)
+                if (result.message === "트윗이 수정되었습니다.") {
+                    toast.success("트윗이 수정되었습니다.");
+                    setIsEditing(false);
+                } else if (result.message === "트윗이 삭제되었습니다.") {
+                    toast.success("트윗이 삭제되었습니다.");
+                }
             } else if (result.error) {
                 toast.error(result.error);
             }
@@ -187,6 +217,30 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                     </button>
                 </div>
             </div>
+            {/* Edit Dialog */}
+            <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                <DialogContent onClick={(e) => e.stopPropagation()}>
+                    <DialogHeader>
+                        <DialogTitle>트윗 수정하기</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="min-h-[150px] text-lg resize-none border-none focus-visible:ring-0 p-0"
+                            placeholder="무슨 일이 일어나고 있나요?"
+                        />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose>
+                            <Button variant="ghost">취소</Button>
+                        </DialogClose>
+                        <Button onClick={handleUpdate} disabled={fetcher.state !== "idle"}>
+                            {fetcher.state !== "idle" ? "수정 중..." : "수정하기"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

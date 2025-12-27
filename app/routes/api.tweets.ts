@@ -141,5 +141,47 @@ export async function action({ request }: ActionFunctionArgs) {
         }
     }
 
+    // PATCH: 트윗 수정
+    if (request.method === "PATCH") {
+        const formData = await request.formData();
+        const tweetId = formData.get("tweetId") as string;
+        const content = formData.get("content") as string;
+
+        if (!tweetId || !content) {
+            return data({ error: "필수 정보가 누락되었습니다." }, { status: 400 });
+        }
+
+        try {
+            // 본인 확인
+            const tweet = await prisma.tweet.findUnique({
+                where: { id: tweetId },
+                select: { userId: true }
+            });
+
+            if (!tweet) {
+                return data({ error: "트윗을 찾을 수 없습니다." }, { status: 404 });
+            }
+
+            if (tweet.userId !== session.user.id) {
+                return data({ error: "수정 권한이 없습니다." }, { status: 403 });
+            }
+
+            const updatedTweet = await prisma.tweet.update({
+                where: { id: tweetId },
+                data: { content },
+                include: { user: true }
+            });
+
+            return data({ success: true, tweet: updatedTweet, message: "트윗이 수정되었습니다." }, { status: 200 });
+
+        } catch (error) {
+            if (error instanceof z.ZodError) {
+                return data({ error: error.issues[0].message }, { status: 400 });
+            }
+            console.error("Tweet Update Error:", error);
+            return data({ error: "트윗 수정 중 오류가 발생했습니다." }, { status: 500 });
+        }
+    }
+
     return data({ error: "Method Not Allowed" }, { status: 405 });
 }
