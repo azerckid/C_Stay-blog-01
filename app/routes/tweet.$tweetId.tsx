@@ -31,6 +31,11 @@ export async function loader({ params }: LoaderFunctionArgs) {
         throw new Response("트윗을 찾을 수 없습니다.", { status: 404 });
     }
 
+    // Soft Delete: 삭제된 트윗은 접근 불가
+    if (tweet.deletedAt) {
+        throw new Response("삭제된 트윗입니다.", { status: 404 });
+    }
+
     const formattedTweet = {
         id: tweet.id,
         content: tweet.content,

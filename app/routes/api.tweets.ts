@@ -15,6 +15,9 @@ const createTweetSchema = z.object({
 export async function loader({ request }: LoaderFunctionArgs) {
     try {
         const tweets = await prisma.tweet.findMany({
+            where: {
+                deletedAt: null, // Soft Delete: 삭제되지 않은 트윗만 조회
+            },
             take: 20,
             orderBy: { createdAt: "desc" },
             include: {
@@ -118,19 +121,26 @@ export async function action({ request }: ActionFunctionArgs) {
             // 본인 확인 (작성자만 삭제 가능)
             const tweet = await prisma.tweet.findUnique({
                 where: { id: tweetId },
-                select: { userId: true }
+                select: { userId: true, deletedAt: true }
             });
 
             if (!tweet) {
                 return data({ error: "트윗을 찾을 수 없습니다." }, { status: 404 });
             }
 
+            // 이미 삭제된 트윗인지 확인
+            if (tweet.deletedAt) {
+                return data({ error: "이미 삭제된 트윗입니다." }, { status: 404 });
+            }
+
             if (tweet.userId !== session.user.id) {
                 return data({ error: "삭제 권한이 없습니다." }, { status: 403 });
             }
 
-            await prisma.tweet.delete({
-                where: { id: tweetId }
+            // Soft Delete: deletedAt을 현재 시간으로 설정
+            await prisma.tweet.update({
+                where: { id: tweetId },
+                data: { deletedAt: new Date() }
             });
 
             return data({ success: true, message: "트윗이 삭제되었습니다." }, { status: 200 });
@@ -155,11 +165,16 @@ export async function action({ request }: ActionFunctionArgs) {
             // 본인 확인
             const tweet = await prisma.tweet.findUnique({
                 where: { id: tweetId },
-                select: { userId: true }
+                select: { userId: true, deletedAt: true }
             });
 
             if (!tweet) {
                 return data({ error: "트윗을 찾을 수 없습니다." }, { status: 404 });
+            }
+
+            // 삭제된 트윗은 수정 불가
+            if (tweet.deletedAt) {
+                return data({ error: "삭제된 트윗은 수정할 수 없습니다." }, { status: 404 });
             }
 
             if (tweet.userId !== session.user.id) {

@@ -14,6 +14,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const session = await getSession(request);
 
   const tweets = await prisma.tweet.findMany({
+    where: {
+      deletedAt: null, // Soft Delete: 삭제되지 않은 트윗만 조회
+    },
     take: 20,
     orderBy: { createdAt: "desc" },
     include: {
