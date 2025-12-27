@@ -11,7 +11,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import { useSession } from "~/lib/auth-client";
-import { useFetcher } from "react-router";
+import { useFetcher, useRevalidator } from "react-router";
 import { toast } from "sonner";
 import {
     DropdownMenu,
@@ -60,6 +60,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const navigate = useNavigate();
     const { data: session } = useSession();
     const fetcher = useFetcher();
+    const revalidator = useRevalidator();
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState(content);
 
@@ -98,14 +99,16 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                 if (result.message === "트윗이 수정되었습니다.") {
                     toast.success("트윗이 수정되었습니다.");
                     setIsEditing(false);
+                    revalidator.revalidate(); // 피드 갱신
                 } else if (result.message === "트윗이 삭제되었습니다.") {
                     toast.success("트윗이 삭제되었습니다.");
+                    revalidator.revalidate(); // 피드 갱신
                 }
             } else if (result.error) {
                 toast.error(result.error);
             }
         }
-    }, [fetcher.state, fetcher.data]);
+    }, [fetcher.state, fetcher.data, revalidator]);
 
     const handleClick = () => {
         if (id) {
