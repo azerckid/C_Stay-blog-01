@@ -108,6 +108,15 @@
        "isRetweet" BOOLEAN NOT NULL DEFAULT false,  -- 리트윗 여부 (선택적)
        "originalTweetId" TEXT,  -- 리트윗일 경우 원본 트윗 ID (선택적)
        "deletedAt" DATETIME,  -- Soft Delete (선택사항)
+       -- 여행 블로그 특화 필드 (선택사항)
+       "locationName" TEXT,  -- 장소 이름 (예: "에펠탑", "부산 해운대")
+       "latitude" REAL,  -- 위도
+       "longitude" REAL,  -- 경도
+       "address" TEXT,  -- 주소
+       "travelDate" DATETIME,  -- 여행 날짜
+       "country" TEXT,  -- 국가 (예: "대한민국", "프랑스")
+       "city" TEXT,  -- 도시 (예: "서울", "파리")
+       "travelPlanId" TEXT,  -- 여행 계획 ID (기존 TravelPlan 테이블과 연결, 선택적)
        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
        "updatedAt" DATETIME NOT NULL,
        FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -120,6 +129,10 @@
    CREATE INDEX "Tweet_parentId_idx" ON "Tweet"("parentId");
    CREATE INDEX "Tweet_createdAt_idx" ON "Tweet"("createdAt" DESC);
    CREATE INDEX "Tweet_deletedAt_idx" ON "Tweet"("deletedAt") WHERE "deletedAt" IS NULL;
+   -- 여행 관련 인덱스
+   CREATE INDEX "Tweet_country_city_idx" ON "Tweet"("country", "city");
+   CREATE INDEX "Tweet_travelDate_idx" ON "Tweet"("travelDate" DESC);
+   CREATE INDEX "Tweet_latitude_longitude_idx" ON "Tweet"("latitude", "longitude");
    ```
 
 2. **`Media`** - 트윗에 첨부된 미디어 (이미지/동영상)
@@ -216,6 +229,38 @@
    CREATE INDEX "Bookmark_userId_tweetId_idx" ON "Bookmark"("userId", "tweetId");
    ```
 
+7. **`TravelTag`** - 여행 태그 (여행 블로그 특화)
+   ```sql
+   CREATE TABLE "TravelTag" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "name" TEXT NOT NULL UNIQUE,  -- 태그 이름 (예: "해변", "산", "도시", "음식", "문화")
+       "slug" TEXT NOT NULL UNIQUE,  -- URL 친화적 태그 (예: "beach", "mountain", "city")
+       "description" TEXT,  -- 태그 설명 (선택사항)
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+   );
+   
+   -- 인덱스
+   CREATE INDEX "TravelTag_slug_idx" ON "TravelTag"("slug");
+   ```
+
+8. **`TweetTravelTag`** - 트윗과 여행 태그의 다대다 관계
+   ```sql
+   CREATE TABLE "TweetTravelTag" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "tweetId" TEXT NOT NULL,
+       "travelTagId" TEXT NOT NULL,
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY ("tweetId") REFERENCES "Tweet" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       FOREIGN KEY ("travelTagId") REFERENCES "TravelTag" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+       UNIQUE("tweetId", "travelTagId")  -- 중복 태그 방지
+   );
+   
+   -- 인덱스
+   CREATE INDEX "TweetTravelTag_tweetId_idx" ON "TweetTravelTag"("tweetId");
+   CREATE INDEX "TweetTravelTag_travelTagId_idx" ON "TweetTravelTag"("travelTagId");
+   CREATE INDEX "TweetTravelTag_tweetId_travelTagId_idx" ON "TweetTravelTag"("tweetId", "travelTagId");
+   ```
+
 *참고: `Reply` 테이블은 `Tweet` 테이블의 자기 참조(`parentId`)로 통합하여 관리합니다.*
 
 ## 스키마 변경 가이드
@@ -268,6 +313,9 @@ datasource db {
   - `parentId`: 답글 조회
   - `createdAt`: 시간순 정렬
   - `deletedAt`: Soft Delete된 트윗 제외 (WHERE 조건 최적화)
+  - `country, city`: 국가/도시별 여행 트윗 조회
+  - `travelDate`: 여행 날짜별 정렬
+  - `latitude, longitude`: 위치 기반 검색 (거리 기반)
 
 - **Media 테이블**:
   - `tweetId`: 트윗별 미디어 조회
@@ -277,6 +325,11 @@ datasource db {
   - `userId`: 사용자별 좋아요/리트윗/북마크 조회
   - `tweetId`: 트윗별 좋아요/리트윗/북마크 개수 조회
   - 복합 인덱스: 사용자가 특정 트윗에 좋아요/리트윗/북마크했는지 확인
+
+- **TravelTag, TweetTravelTag 테이블**:
+  - `slug`: 태그 이름으로 검색
+  - `travelTagId`: 특정 태그를 가진 트윗 조회
+  - `tweetId, travelTagId`: 트윗의 태그 관계 확인
 
 - **Follow 테이블**:
   - `followerId`: 팔로워 목록 조회

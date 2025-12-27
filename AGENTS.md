@@ -21,6 +21,8 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
 - **Date/Time**: Luxon (date and time handling)
 - **Media Storage**: Cloudinary (for image and video uploads)
 - **Mobile**: Capacitor (iOS, Android native apps, PWA support)
+- **Search (Optional)**: RAG system with Vector DB (Pinecone, Weaviate, or FAISS) and Embedding models (OpenAI or open-source)
+- **Maps (Travel Blog)**: Google Maps API, Naver Maps API, or Mapbox (for location visualization and travel route mapping)
 
 ## Code Style & Conventions
 - Use **TypeScript** for all files.
