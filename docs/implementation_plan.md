@@ -135,13 +135,13 @@ Auth.js를 사용한 세션 기반 인증 시스템 구현
 
 ### 작업 항목
 
-- [ ] Auth.js 설치 및 설정
-  - `npm install @auth/core @auth/prisma-adapter`
-  - Auth.js 설정 파일 생성
-  - Prisma 어댑터 연결
+- [ ] Better Auth 설치 및 설정
+  - `npm install better-auth`
+  - Auth 서버 설정 (`app/lib/auth.ts`)
+  - Auth 클라이언트 설정 (`app/lib/auth-client.ts`)
   - **확인 방법**: 
-    - `package.json`에 `@auth/core`, `@auth/prisma-adapter` 패키지가 추가되었는지 확인
-    - Auth.js 설정 파일이 생성되었는지 확인 (`app/lib/auth.ts` 등)
+    - `package.json`에 `better-auth` 패키지가 추가되었는지 확인
+    - `app/lib/auth.ts`와 `app/lib/auth-client.ts` 파일이 생성되었는지 확인
     - TypeScript 컴파일 오류가 없는지 확인 (`npm run typecheck`)
 
 - [ ] 로그인 페이지 구현
