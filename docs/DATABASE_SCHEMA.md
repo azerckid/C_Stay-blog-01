@@ -58,6 +58,8 @@
        "createdAt" DATETIME NOT NULL,
        "updatedAt" DATETIME NOT NULL,
        FOREIGN KEY ("userId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+       -- 주의: 기존 테이블에서 "user" (소문자)를 참조하지만, 실제 테이블명은 "User" (대문자)입니다.
+       -- SQLite는 경우에 따라 대소문자를 무시할 수 있지만, 새 테이블에서는 "User" (대문자)를 사용해야 합니다.
    );
    ```
 
@@ -73,6 +75,8 @@
        "userAgent" TEXT,
        "userId" TEXT NOT NULL,
        FOREIGN KEY ("userId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+       -- 주의: 기존 테이블에서 "user" (소문자)를 참조하지만, 실제 테이블명은 "User" (대문자)입니다.
+       -- SQLite는 경우에 따라 대소문자를 무시할 수 있지만, 새 테이블에서는 "User" (대문자)를 사용해야 합니다.
    );
    ```
 
@@ -117,6 +121,7 @@
        "country" TEXT,  -- 국가 (예: "대한민국", "프랑스")
        "city" TEXT,  -- 도시 (예: "서울", "파리")
        "travelPlanId" TEXT,  -- 여행 계획 ID (기존 TravelPlan 테이블과 연결, 선택적)
+       -- 주의: travelPlanId는 FOREIGN KEY 제약조건을 추가하지 않음 (다른 프로젝트와 공유하는 테이블이므로 안전을 위해)
        "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
        "updatedAt" DATETIME NOT NULL,
        FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -265,7 +270,19 @@
 
 ## 스키마 변경 가이드
 
+### 중요한 주의사항
+
+**이 데이터베이스는 다른 프로젝트와 공유됩니다.**
+- 기존 테이블의 이름이나 구조를 변경하면 안 됩니다.
+- 새로운 테이블 추가만 가능합니다.
+- 기존 테이블을 참조할 때는 실제 테이블명을 정확히 사용해야 합니다:
+  - `User` (대문자 U) - 사용자 테이블
+  - `TravelPlan` (대문자 T, P) - 여행 계획 테이블
+  - 기타 기존 테이블들은 실제 테이블명을 확인 후 사용
+
 ### 새 컬럼 추가
+
+**주의**: 기존 테이블에 컬럼을 추가하는 것은 다른 프로젝트에 영향을 줄 수 있으므로 신중하게 결정해야 합니다.
 
 1. Prisma 스키마 (`prisma/schema.prisma`)에 컬럼 정의 추가
 2. 마이그레이션 생성: `npx prisma migrate dev --name add_[컬럼명]_to_[테이블명]`
@@ -276,6 +293,7 @@
 1. Prisma 스키마에 모델 추가
 2. 마이그레이션 생성: `npx prisma migrate dev --name create_[테이블명]`
 3. 이 문서에 테이블 구조 기록
+4. **FOREIGN KEY 참조 시 기존 테이블명을 정확히 사용**: `"User"` (대문자), `"TravelPlan"` 등
 
 ## Prisma 스키마
 
