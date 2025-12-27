@@ -1,9 +1,10 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { authClient, useSession, signOut } from "~/lib/auth-client";
-import { useLoaderData, useNavigate } from "react-router";
-import { Button } from "~/components/ui/button";
-import { toast } from "sonner";
+import { useSession } from "~/lib/auth-client";
+import { useLoaderData } from "react-router";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Settings01Icon, Image01Icon, SentIcon, AiBrain01Icon } from "@hugeicons/core-free-icons";
+import { cn } from "~/lib/utils";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const session = await getSession(request);
@@ -12,88 +13,114 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export function meta({ }: MetaFunction) {
   return [
-    { title: "STAYnC - 여행자들의 공간" },
-    { name: "description", content: "여행 이야기를 나누는 트위터 클론 서비스" },
+    { title: "홈 / STAYnC" },
+    { name: "description", content: "여행 이야기를 나누는 여행자들의 공간" },
   ];
 }
 
 export default function Home() {
   const { session: serverSession } = useLoaderData<typeof loader>();
-  const { data: clientSession, isPending } = useSession();
-  const navigate = useNavigate();
+  const { data: clientSession } = useSession();
 
-  // 클라이언트 세션 로딩 중에는 서버 세션을 우선 사용
   const session = clientSession || serverSession;
 
-  const handleLogout = async () => {
-    if (!window.confirm("정말 로그아웃 하시겠습니까?")) return;
-
-    try {
-      // 1. Better Auth 로그아웃 요청
-      await signOut();
-
-      // 2. 성공 시 즉각 피드백 및 페이지 강제 새로고침 (세션 클리어 보장)
-      toast.success("로그아웃 되었습니다.");
-      setTimeout(() => {
-        window.location.replace("/login");
-      }, 500);
-    } catch (error) {
-      console.error("Logout Error:", error);
-      // 오류가 나더라도 강제로 로그인 페이지로 이동시켜 세션 초기화 유도
-      window.location.replace("/login");
-    }
-  };
-
-  // session이 있는 경우(서버 혹은 클라이언트) 즉시 렌더링
-  const showLoading = isPending && !session;
-
-  if (showLoading) {
-    return <div className="p-8 text-slate-400">인증 확인 중...</div>;
-  }
-
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-8">
-      <div className="max-w-md mx-auto space-y-6">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          🏠 홈 피드
-        </h1>
+    <div className="flex flex-col min-h-screen">
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between">
+        <h1 className="text-xl font-bold">홈</h1>
+        <button className="p-2 hover:bg-accent rounded-full transition-colors">
+          <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="h-5 w-5" />
+        </button>
+      </header>
 
-        {session ? (
-          <div className="bg-white/5 border border-white/10 p-6 rounded-2xl backdrop-blur-sm shadow-xl">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-xl">
-                {session.user.name?.[0] || "U"}
-              </div>
-              <div>
-                <p className="font-bold text-lg text-blue-400">{session.user.name}님</p>
-                <p className="text-sm text-slate-400">{session.user.email}</p>
-              </div>
-            </div>
+      {/* Tabs */}
+      <div className="flex border-b border-border">
+        <button className="flex-1 py-4 hover:bg-accent/50 transition-colors relative font-bold">
+          추천
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1 bg-primary rounded-full" />
+        </button>
+        <button className="flex-1 py-4 hover:bg-accent/50 transition-colors text-muted-foreground font-medium">
+          팔로잉
+        </button>
+      </div>
 
-            <div className="space-y-3">
-              <p className="text-sm text-slate-300 bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
-                ✅ 현재 로그인 되어 있습니다. 로그인을 테스트하시려면 아래 버튼을 눌러주세요.
-              </p>
-              <Button
-                variant="destructive"
-                onClick={handleLogout}
-                className="w-full py-6 font-bold text-lg shadow-lg hover:shadow-red-500/20 transition-all"
-              >
-                로그아웃 (테스트용)
-              </Button>
+      {/* Tweet Composer Mockup (Phase 3 UI only) */}
+      <div className="p-4 border-b border-border flex gap-3">
+        <div className="h-10 w-10 rounded-full bg-secondary flex-shrink-0 border border-border overflow-hidden">
+          {session?.user?.image ? (
+            <img src={session.user.image} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center text-muted-foreground font-bold">
+              {session?.user?.name?.[0] || "?"}
             </div>
-          </div>
-        ) : (
-          <div className="bg-white/5 border border-white/10 p-8 rounded-2xl text-center">
-            <p className="text-slate-400 mb-6">로그인 상태가 아닙니다. 다시 테스트해 보세요!</p>
-            <Button
-              onClick={() => navigate("/login")}
-              className="w-full bg-blue-600 hover:bg-blue-500 py-6 font-bold text-lg"
+          )}
+        </div>
+        <div className="flex-1 flex flex-col gap-3">
+          <textarea
+            placeholder="무슨 일이 일어나고 있나요?"
+            className="w-full bg-transparent text-xl outline-none resize-none pt-2 min-h-[100px]"
+          />
+          <div className="flex items-center justify-between border-t border-border pt-3">
+            <div className="flex items-center gap-1 text-primary">
+              <button className="p-2 hover:bg-primary/10 rounded-full transition-colors">
+                <HugeiconsIcon icon={Image01Icon} strokeWidth={2} className="h-5 w-5" />
+              </button>
+              <button className="p-2 hover:bg-primary/10 rounded-full transition-colors">
+                <HugeiconsIcon icon={AiBrain01Icon} strokeWidth={2} className="h-5 w-5" />
+              </button>
+            </div>
+            <button
+              disabled
+              className="bg-primary text-white font-bold py-2 px-5 rounded-full opacity-50 cursor-not-allowed"
             >
-              로그인 하러 가기
-            </Button>
+              게시하기
+            </button>
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* Feed Mockup */}
+      <div className="flex flex-col">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="p-4 border-b border-border hover:bg-accent/20 transition-colors cursor-pointer flex gap-3">
+            <div className="h-10 w-10 rounded-full bg-secondary flex-shrink-0 border border-border" />
+            <div className="flex-1 flex flex-col gap-1">
+              <div className="flex items-center gap-1">
+                <span className="font-bold hover:underline">여행전문가_{i}</span>
+                <span className="text-muted-foreground text-sm">@traveler_{i} · {i}시간 전</span>
+              </div>
+              <p className="text-[15px] leading-normal">
+                이번 주말에 다녀온 제주도 여행 사진입니다! 날씨가 정말 좋았어요.
+                #제주도 #여행 #바다
+              </p>
+              {i % 2 === 0 && (
+                <div className="mt-3 aspect-video rounded-2xl bg-muted border border-border overflow-hidden">
+                  <div className="h-full w-full flex items-center justify-center text-muted-foreground italic">
+                    [여행지 이미지 {i}]
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-3 max-w-sm text-muted-foreground">
+                <button className="group flex items-center gap-2 hover:text-primary transition-colors">
+                  <div className="p-2 group-hover:bg-primary/10 rounded-full">
+                    <HugeiconsIcon icon={SentIcon} strokeWidth={2} className="h-4.5 w-4.5" />
+                  </div>
+                  <span className="text-xs">{i * 3}</span>
+                </button>
+                <div className="group flex items-center gap-2 hover:text-green-500 transition-colors text-xs">
+                  리트윗 {i * 7}
+                </div>
+                <div className="group flex items-center gap-2 hover:text-red-500 transition-colors text-xs">
+                  좋아요 {i * 12}
+                </div>
+                <div className="group flex items-center gap-2 hover:text-primary transition-colors text-xs">
+                  조회수 {i * 1.5}K
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

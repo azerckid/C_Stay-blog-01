@@ -1,7 +1,9 @@
-import { type RouteConfig, index, route } from "@react-router/dev/routes";
+import { type RouteConfig, index, route, layout } from "@react-router/dev/routes";
 
 export default [
-    index("routes/home.tsx"),
+    layout("routes/_app.tsx", [
+        index("routes/home.tsx"),
+    ]),
     route("api/auth/*", "routes/api.auth.ts", { id: "api-auth" }),
     route("auth/google/callback", "routes/api.auth.ts", { id: "google-callback" }),
     route("auth/kakao/callback", "routes/api.auth.ts", { id: "kakao-callback" }),
