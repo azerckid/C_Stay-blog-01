@@ -10,8 +10,16 @@ import {
     MoreHorizontalIcon,
     QuillWrite01Icon
 } from "@hugeicons/core-free-icons";
-import { useSession } from "~/lib/auth-client";
+import { useSession, signOut } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { useNavigate } from "react-router";
 
 const NAV_ITEMS = [
     { label: "홈", href: "/", icon: Home01Icon },
@@ -69,20 +77,46 @@ export function Sidebar() {
 
             {/* User Session Nav */}
             {session?.user && (
-                <button className="flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors w-fit xl:w-full mt-auto">
-                    <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border">
-                        {session.user.image ? (
-                            <img src={session.user.image} alt={session.user.name ?? ""} className="h-full w-full object-cover" />
-                        ) : (
-                            <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="h-6 w-6 text-muted-foreground" />
-                        )}
-                    </div>
-                    <div className="hidden xl:flex flex-col text-left overflow-hidden">
-                        <span className="text-sm font-bold truncate">{session.user.name}</span>
-                        <span className="text-xs text-muted-foreground truncate">@{session.user.email?.split("@")[0]}</span>
-                    </div>
-                    <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-5 w-5 ml-auto hidden xl:block text-muted-foreground" />
-                </button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button className="flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors w-fit xl:w-full mt-auto outline-none">
+                            <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border">
+                                {session.user.image ? (
+                                    <img src={session.user.image} alt={session.user.name ?? ""} className="h-full w-full object-cover" />
+                                ) : (
+                                    <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="h-6 w-6 text-muted-foreground" />
+                                )}
+                            </div>
+                            <div className="hidden xl:flex flex-col text-left overflow-hidden">
+                                <span className="text-sm font-bold truncate">{session.user.name}</span>
+                                <span className="text-xs text-muted-foreground truncate">@{session.user.email?.split("@")[0]}</span>
+                            </div>
+                            <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-5 w-5 ml-auto hidden xl:block text-muted-foreground" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64 mb-2 p-2">
+                        <DropdownMenuItem
+                            variant="destructive"
+                            className="p-3 cursor-pointer rounded-lg"
+                            onSelect={async () => {
+                                try {
+                                    await signOut({
+                                        fetchOptions: {
+                                            onSuccess: () => {
+                                                toast.success("로그아웃되었습니다.");
+                                                window.location.href = "/login";
+                                            }
+                                        }
+                                    });
+                                } catch (error) {
+                                    toast.error("로그아웃 중 오류가 발생했습니다.");
+                                }
+                            }}
+                        >
+                            <span className="font-bold">@{session.user.email?.split("@")[0]} 계정에서 로그아웃</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             )}
         </aside>
     );
