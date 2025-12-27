@@ -31,6 +31,11 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
 - Use **Zod** for all schema validations and type-safe parsing.
 - Use **Luxon** for date and time handling.
 - For React Router v7 route functions (`meta`, `loader`, `action`), import types from `react-router` (e.g., `LoaderFunctionArgs`, `ActionFunctionArgs`, `MetaFunction`).
+- Use **Toast notifications** for user feedback on important actions:
+  - Success: Login, logout, signup, tweet creation/update/delete, comment creation, etc.
+  - Error: Failed actions, validation errors, etc.
+  - Info: General information messages
+  - Warning: Cautionary messages
 - Git commit messages must follow Conventional Commits in Korean (e.g., `feat(ui): 로그인 기능 추가`).
 
 ## Testing Instructions
