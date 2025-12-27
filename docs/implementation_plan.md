@@ -185,7 +185,7 @@ Better Auth를 사용한 세션 기반 인증 시스템 구현
     - 로그아웃 후 로그인이 필요한 페이지 접근 시 리다이렉트되는지 확인
     - 세션 유틸리티 함수가 올바르게 동작하는지 테스트
 
-- [ ] OAuth 제공자 설정
+- [x] OAuth 제공자 설정
   - Google OAuth 설정 및 구현
     - 리다이렉트 URL: `http://localhost:5173/auth/google/callback`
   - Kakao OAuth 설정 및 구현
