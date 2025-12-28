@@ -34,7 +34,7 @@ import { useState, useEffect } from "react";
 interface TweetCardProps {
     id?: string;
     user: {
-        id?: string; // 작성자 ID 추가
+        id?: string;
         name: string;
         username: string;
         image?: string | null;
@@ -48,6 +48,7 @@ interface TweetCardProps {
         likes: number;
         views: string;
     };
+    isLiked?: boolean; // 좋아요 여부 추가
     media?: {
         type: "IMAGE" | "VIDEO";
         url: string;
@@ -56,13 +57,24 @@ interface TweetCardProps {
 
 import { useNavigate } from "react-router";
 
-export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, media }: TweetCardProps) {
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, media }: TweetCardProps) {
     const navigate = useNavigate();
     const { data: session } = useSession();
     const fetcher = useFetcher();
+    const likeFetcher = useFetcher(); // 좋아요 전용 fetcher
     const revalidator = useRevalidator();
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState(content);
+
+    // 낙관적 UI를 위한 로컬 상태
+    const [liked, setLiked] = useState(isLiked);
+    const [likeCount, setLikeCount] = useState(stats?.likes ?? 0);
+
+    // Props가 변경되면 로컬 상태 업데이트 (피드 갱신 시 동기화)
+    useEffect(() => {
+        setLiked(isLiked);
+        setLikeCount(stats?.likes ?? 0);
+    }, [isLiked, stats?.likes]);
 
     const isOwner = session?.user?.id === user.id;
 
@@ -91,6 +103,43 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             { method: "PATCH", action: "/api/tweets" }
         );
     };
+
+    const handleLike = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!session) {
+            toast.error("로그인이 필요합니다.");
+            return;
+        }
+        if (!id) return;
+
+        // 낙관적 업데이트
+        const newLiked = !liked;
+        setLiked(newLiked);
+        setLikeCount(prev => newLiked ? prev + 1 : prev - 1);
+
+        likeFetcher.submit(
+            { tweetId: id },
+            { method: "POST", action: "/api/likes" }
+        );
+    };
+
+    // 좋아요 API 응답 처리
+    useEffect(() => {
+        if (likeFetcher.state === "idle" && likeFetcher.data) {
+            const result = likeFetcher.data as any;
+            if (result.success) {
+                // 서버 상태로 최종 동기화 (혹시 모를 불일치 방지)
+                setLiked(result.liked);
+                setLikeCount(result.count);
+            } else {
+                // 에러 시 롤백
+                setLiked(!liked);
+                setLikeCount(prev => liked ? prev - 1 : prev + 1);
+                toast.error(result.error || "좋아요 처리에 실패했습니다.");
+            }
+        }
+    }, [likeFetcher.state, likeFetcher.data]);
+
 
     useEffect(() => {
         if (fetcher.state === "idle" && fetcher.data) {
@@ -185,28 +234,44 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-between mt-3 text-muted-foreground w-full max-w-md">
-                    <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3">
+                    <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
                         <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
                             <HugeiconsIcon icon={Comment01Icon} strokeWidth={2} className="h-4.5 w-4.5" />
                         </div>
                         <span className="text-xs">{stats?.replies ?? 0}</span>
                     </button>
 
-                    <button className="flex items-center gap-2 group/action hover:text-green-500 transition-colors pr-3">
+                    <button className="flex items-center gap-2 group/action hover:text-green-500 transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
                         <div className="p-2 group-hover/action:bg-green-500/10 rounded-full transition-colors">
                             <HugeiconsIcon icon={RepeatIcon} strokeWidth={2} className="h-4.5 w-4.5" />
                         </div>
                         <span className="text-xs">{stats?.retweets ?? 0}</span>
                     </button>
 
-                    <button className="flex items-center gap-2 group/action hover:text-red-500 transition-colors pr-3">
-                        <div className="p-2 group-hover/action:bg-red-500/10 rounded-full transition-colors">
-                            <HugeiconsIcon icon={FavouriteIcon} strokeWidth={2} className="h-4.5 w-4.5" />
+                    <button
+                        onClick={handleLike}
+                        className={cn(
+                            "flex items-center gap-2 group/action transition-colors pr-3",
+                            liked ? "text-red-500" : "hover:text-red-500"
+                        )}
+                    >
+                        <div className={cn(
+                            "p-2 rounded-full transition-colors",
+                            liked ? "bg-red-500/10" : "group-hover/action:bg-red-500/10"
+                        )}>
+                            <HugeiconsIcon
+                                icon={FavouriteIcon}
+                                strokeWidth={liked ? 0 : 2}
+                                className={cn(
+                                    "h-4.5 w-4.5",
+                                    liked && "fill-current"
+                                )}
+                            />
                         </div>
-                        <span className="text-xs">{stats?.likes ?? 0}</span>
+                        <span className={cn("text-xs", liked && "text-red-500")}>{likeCount}</span>
                     </button>
 
-                    <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3">
+                    <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
                         <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
                             <HugeiconsIcon icon={ViewIcon} strokeWidth={2} className="h-4.5 w-4.5" />
                         </div>
