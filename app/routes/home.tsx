@@ -56,6 +56,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     orderBy: { createdAt: "desc" },
     include: {
       user: true,
+      media: true, // Include media
       _count: { select: { likes: true, replies: true, retweets: true } },
       likes: userId ? { where: { userId }, select: { userId: true } } : false,
       retweets: userId ? { where: { userId }, select: { userId: true } } : false,
@@ -83,6 +84,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       tweet: { // 원본 트윗
         include: {
           user: true, // 원본 작성자
+          media: true, // Include media for retweeted tweet
           _count: { select: { likes: true, replies: true, retweets: true } },
           likes: userId ? { where: { userId }, select: { userId: true } } : false,
           retweets: userId ? { where: { userId }, select: { userId: true } } : false,
@@ -119,6 +121,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
           username: tweet.user.email.split("@")[0],
           image: tweet.user.image || tweet.user.avatarUrl,
         },
+        media: tweet.media.map(m => ({
+          id: m.id,
+          url: m.url,
+          type: m.type,
+          altText: m.altText
+        })),
         stats: {
           likes: tweet._count.likes,
           replies: tweet._count.replies,
@@ -150,6 +158,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
           username: tweet.user.email.split("@")[0],
           image: tweet.user.image || tweet.user.avatarUrl,
         },
+        media: tweet.media.map(m => ({
+          id: m.id,
+          url: m.url,
+          type: m.type,
+          altText: m.altText
+        })),
         stats: {
           likes: tweet._count.likes,
           replies: tweet._count.replies,

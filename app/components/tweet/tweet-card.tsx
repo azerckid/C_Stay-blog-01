@@ -269,13 +269,56 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                         {content}
                     </p>
 
-                    {/* Media (Optional) */}
+
+                    {/* Media Display */}
                     {media && media.length > 0 && (
-                        <div className="mt-3 aspect-video rounded-2xl bg-muted border border-border overflow-hidden">
-                            {/* Phase 8에서 실제 미디어 렌더링 구현 예정 */}
-                            <div className="h-full w-full flex items-center justify-center text-muted-foreground italic text-sm">
-                                [미디어 콘텐츠]
-                            </div>
+                        <div className={cn(
+                            "mt-3 rounded-2xl overflow-hidden border border-border",
+                            media.length > 1 ? "grid gap-0.5 aspect-[16/9]" : "",
+                            media.length === 2 ? "grid-cols-2" : "",
+                            media.length === 3 ? "grid-cols-2 grid-rows-2" : "",
+                            media.length === 4 ? "grid-cols-2 grid-rows-2" : ""
+                        )}>
+                            {media.map((item, index) => {
+                                const isThree = media.length === 3;
+                                const isFirstOfThree = isThree && index === 0;
+
+                                return (
+                                    <div
+                                        key={item.url}
+                                        className={cn(
+                                            "relative overflow-hidden bg-secondary",
+                                            media.length === 1 ? "w-full max-h-[600px]" : "w-full h-full",
+                                            isFirstOfThree ? "row-span-2" : ""
+                                        )}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            // TODO: Open lightbox/modal
+                                        }}
+                                    >
+                                        {item.type === 'VIDEO' ? (
+                                            <video
+                                                src={item.url}
+                                                controls
+                                                className={cn(
+                                                    "object-cover",
+                                                    media.length === 1 ? "w-full h-auto max-h-[600px]" : "w-full h-full"
+                                                )}
+                                            />
+                                        ) : (
+                                            <img
+                                                src={item.url}
+                                                alt="media"
+                                                loading="lazy"
+                                                className={cn(
+                                                    "object-cover hover:scale-105 transition-transform duration-300",
+                                                    media.length === 1 ? "w-full h-auto max-h-[600px]" : "w-full h-full"
+                                                )}
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
 

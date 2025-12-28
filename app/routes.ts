@@ -9,6 +9,7 @@ export default [
     route("api/likes", "routes/api.likes.ts"),
     route("api/retweets", "routes/api.retweets.ts"),
     route("api/follows", "routes/api.follows.ts"),
+    route("api/upload", "routes/api.upload.ts"),
     route("tweet/:tweetId", "routes/tweet.$tweetId.tsx"),
     route("auth/google/callback", "routes/api.auth.ts", { id: "google-callback" }),
     route("auth/kakao/callback", "routes/api.auth.ts", { id: "kakao-callback" }),

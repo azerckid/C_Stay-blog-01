@@ -30,6 +30,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             },
             likes: userId ? { where: { userId }, select: { userId: true } } : false,
             retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+            media: true, // Include media for main tweet
             replies: {
                 where: { deletedAt: null },
                 orderBy: [
@@ -38,6 +39,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
                 ],
                 include: {
                     user: true,
+                    media: true, // Include media for replies
                     _count: { select: { likes: true, replies: true, retweets: true } },
                     likes: userId ? { where: { userId }, select: { userId: true } } : false,
                     retweets: userId ? { where: { userId }, select: { userId: true } } : false,
@@ -79,7 +81,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             city: t.city,
             country: t.country,
             travelDate: t.travelDate ? new Date(t.travelDate).toLocaleDateString() : undefined,
-        } : undefined
+        } : undefined,
+        media: t.media ? t.media.map((m: any) => ({
+            id: m.id,
+            url: m.url,
+            type: m.type,
+            altText: m.altText
+        })) : []
     });
 
     const formattedTweet = formatTweetData(tweet);
