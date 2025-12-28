@@ -1,0 +1,29 @@
+import { defineConfig } from "@prisma/config";
+import dotenv from "dotenv";
+import dotenvExpand from "dotenv-expand";
+
+const env = dotenv.config();
+dotenvExpand.expand(env);
+
+// Replace libsql:// with wss:// for Prisma CLI compatibility if needed
+// Or try https:// if wss:// fails.
+// Note: Turso usually works with libsql:// for the client, but CLI needs something it understands OR we are finding out CLI doesn't support it at all.
+// However, some sources say wss:// works for some versions.
+
+let url = process.env.DATABASE_URL;
+
+if (url && url.startsWith("libsql://")) {
+  // Try converting to wss:// to see if Prisma handles it better, 
+  // although Prisma standard SQLite provider usually only accepts 'file:'.
+  // If this fails, we might have to use a local file and manual sync.
+  url = url.replace("libsql://", "wss://");
+}
+
+console.log("DEBUG: Configured URL starts with", url?.split("://")[0]);
+
+export default defineConfig({
+  datasource: {
+    url: url,
+  },
+  schema: "prisma/schema.prisma",
+});

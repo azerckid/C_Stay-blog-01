@@ -1,6 +1,6 @@
 import { type ActionFunctionArgs, data } from "react-router";
 import { prisma } from "~/lib/prisma.server";
-import { auth } from "~/lib/auth.server";
+import { auth } from "~/lib/auth";
 import { z } from "zod";
 
 const followSchema = z.object({

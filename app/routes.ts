@@ -14,4 +14,5 @@ export default [
     route("auth/kakao/callback", "routes/api.auth.ts", { id: "kakao-callback" }),
     route("login", "routes/login.tsx"),
     route("signup", "routes/signup.tsx"),
+    route("user/:userId", "routes/user.$userId.tsx"),
 ] satisfies RouteConfig;

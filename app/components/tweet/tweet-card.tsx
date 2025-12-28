@@ -197,7 +197,13 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             <div className="flex gap-3">
                 {/* Left Column: Avatar */}
                 <div className="flex-shrink-0 mr-3">
-                    <div className="h-10 w-10 rounded-full bg-secondary border border-border overflow-hidden">
+                    <div
+                        className="h-10 w-10 rounded-full bg-secondary border border-border overflow-hidden hover:opacity-80 transition-opacity"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/user/${user.id}`);
+                        }}
+                    >
                         {user.image ? (
                             <img src={user.image} alt={user.name} className="h-full w-full object-cover" />
                         ) : (
@@ -213,8 +219,24 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1 overflow-hidden">
-                            <span className="font-bold hover:underline truncate">{user.name}</span>
-                            <span className="text-muted-foreground text-sm truncate">@{user.username}</span>
+                            <span
+                                className="font-bold hover:underline truncate"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/user/${user.id}`);
+                                }}
+                            >
+                                {user.name}
+                            </span>
+                            <span
+                                className="text-muted-foreground text-sm truncate"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/user/${user.id}`);
+                                }}
+                            >
+                                @{user.username}
+                            </span>
                             <span
                                 className="text-muted-foreground text-sm flex-shrink-0 cursor-help"
                                 title={fullCreatedAt}
