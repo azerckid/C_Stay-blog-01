@@ -134,7 +134,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         retweetedBy: { // 리트윗한 사람 정보
           name: retweetData.user.name || "알 수 없음",
           username: retweetData.user.email.split("@")[0],
-          retweetedAt: DateTime.fromJSDate(retweetData.createdAt).setLocale("ko").toRelative()
+          retweetedAt: DateTime.fromJSDate(retweetData.createdAt).setLocale("ko").toRelative() ?? undefined
         }
       };
     }
