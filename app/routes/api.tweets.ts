@@ -2,6 +2,7 @@ import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-ro
 import { prisma } from "~/lib/prisma.server";
 import { DateTime } from "luxon";
 import { getSession } from "~/lib/auth-utils.server";
+import { deleteFromCloudinary } from "~/lib/cloudinary.server";
 import { z } from "zod";
 
 const createTweetSchema = z.object({
@@ -128,6 +129,7 @@ export async function action({ request }: ActionFunctionArgs) {
                             url: m.url,
                             type: m.type === 'video' ? 'VIDEO' : 'IMAGE', // Ensure uppercase for DB enum/string convention
                             thumbnailUrl: m.thumbnailUrl, // Optional
+                            publicId: m.publicId,
                             order: index
                         }));
                     }
@@ -238,10 +240,70 @@ export async function action({ request }: ActionFunctionArgs) {
                 return data({ error: "수정 권한이 없습니다." }, { status: 403 });
             }
 
+            // 1. 미디어 삭제 처리
+            const deletedMediaIdsStr = formData.get("deletedMediaIds") as string;
+            if (deletedMediaIdsStr) {
+                try {
+                    const idsToDelete = JSON.parse(deletedMediaIdsStr);
+                    if (Array.isArray(idsToDelete) && idsToDelete.length > 0) {
+                        // DB에서 미디어 조회 (Cloudinary 삭제를 위해 publicId 필요)
+                        const mediaToDelete = await prisma.media.findMany({
+                            where: {
+                                id: { in: idsToDelete },
+                                tweetId: tweetId // 안전 장치: 해당 트윗의 미디어만 삭제
+                            }
+                        });
+
+                        for (const media of mediaToDelete) {
+                            // Cloudinary에서 삭제 (Async non-blocking would be better usually, but ensuring cleanup here)
+                            if (media.publicId) {
+                                await deleteFromCloudinary(media.publicId, media.type === 'VIDEO' ? 'video' : 'image').catch(console.error);
+                            }
+                        }
+
+                        // DB에서 삭제
+                        await prisma.media.deleteMany({
+                            where: {
+                                id: { in: idsToDelete },
+                                tweetId: tweetId
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error("Media Deletion Error", e);
+                }
+            }
+
+            // 2. 새로운 미디어 추가 처리
+            const newMediaStr = formData.get("newMedia") as string;
+            if (newMediaStr) {
+                try {
+                    const newMediaList = JSON.parse(newMediaStr);
+                    if (Array.isArray(newMediaList) && newMediaList.length > 0) {
+                        // 기존 미디어 갯수 확인 (순서 정렬을 위해)
+                        const existingCount = await prisma.media.count({ where: { tweetId } });
+
+                        const createData = newMediaList.map((m: any, index: number) => ({
+                            tweetId: tweetId,
+                            url: m.url,
+                            type: m.type === 'video' ? 'VIDEO' : 'IMAGE',
+                            publicId: m.publicId,
+                            order: existingCount + index
+                        }));
+
+                        await prisma.media.createMany({
+                            data: createData
+                        });
+                    }
+                } catch (e) {
+                    console.error("New Media Creation Error", e);
+                }
+            }
+
             const updatedTweet = await prisma.tweet.update({
                 where: { id: tweetId },
                 data: { content },
-                include: { user: true }
+                include: { user: true, media: true }
             });
 
             return data({ success: true, tweet: updatedTweet, message: "트윗이 수정되었습니다." }, { status: 200 });

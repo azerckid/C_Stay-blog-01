@@ -134,9 +134,9 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                                 <button
                                     onClick={() => removeAttachment(index)}
                                     type="button"
-                                    className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
                                 >
-                                    <HugeiconsIcon icon={Cancel01Icon} className="w-4 h-4" />
+                                    <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         ))}

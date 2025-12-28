@@ -138,6 +138,7 @@ model Media {
   type         String // 'IMAGE' 또는 'VIDEO'
   url          String
   thumbnailUrl String?
+  publicId     String? // for deletion
   altText      String?
   order        Int      @default(0)
   createdAt    DateTime @default(now())

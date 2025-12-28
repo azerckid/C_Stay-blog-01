@@ -105,7 +105,7 @@ export function Sidebar() {
                             <button className="flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors w-fit xl:w-full mt-auto outline-none" />
                         }
                     >
-                        <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border pointer-events-none">
+                        <div className="h-10 w-10 shrink-0 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border pointer-events-none">
                             {session.user.image ? (
                                 <img src={session.user.image} alt={session.user.name ?? ""} className="h-full w-full object-cover" />
                             ) : (

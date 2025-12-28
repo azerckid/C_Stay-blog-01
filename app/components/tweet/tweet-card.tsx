@@ -7,7 +7,9 @@ import {
     Share01Icon,
     MoreHorizontalIcon,
     Delete02Icon,
-    PencilEdit02Icon
+    PencilEdit02Icon,
+    Image01Icon,
+    Cancel01Icon
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import { useSession } from "~/lib/auth-client";
@@ -29,7 +31,7 @@ import {
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface TweetCardProps {
     id?: string;
@@ -51,6 +53,7 @@ interface TweetCardProps {
     isLiked?: boolean; // 좋아요 여부 추가
     isRetweeted?: boolean; // 리트윗 여부 추가
     media?: {
+        id: string;
         type: "IMAGE" | "VIDEO";
         url: string;
     }[];
@@ -70,9 +73,16 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const fetcher = useFetcher();
     const likeFetcher = useFetcher();
     const retweetFetcher = useFetcher();
+    const uploadFetcher = useFetcher(); // File upload for editing
     const revalidator = useRevalidator();
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState(content);
+
+    // Media Editing State
+    const [existingMedia, setExistingMedia] = useState(media || []);
+    const [newAttachments, setNewAttachments] = useState<{ url: string; publicId: string; type: "image" | "video" }[]>([]);
+    const [deletedMediaIds, setDeletedMediaIds] = useState<string[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 낙관적 UI를 위한 로컬 상태
     const [liked, setLiked] = useState(isLiked);
@@ -91,6 +101,9 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     };
     const handleEdit = () => {
         setEditContent(content);
+        setExistingMedia(media || []);
+        setNewAttachments([]);
+        setDeletedMediaIds([]);
         setIsEditing(true);
     };
     const handleUpdate = () => { /* ... */
@@ -100,10 +113,63 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             return;
         }
 
+        const payload: any = { tweetId: id, content: editContent };
+
+        if (deletedMediaIds.length > 0) {
+            payload.deletedMediaIds = JSON.stringify(deletedMediaIds);
+        }
+        if (newAttachments.length > 0) {
+            payload.newMedia = JSON.stringify(newAttachments);
+        }
+
         fetcher.submit(
-            { tweetId: id, content: editContent },
+            payload,
             { method: "PATCH", action: "/api/tweets" }
         );
+    };
+
+    // File Upload Handler for Edit
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error("파일 크기는 10MB를 초과할 수 없습니다.");
+            return;
+        }
+
+        const currentTotal = existingMedia.length + newAttachments.length;
+        if (currentTotal >= 4) {
+            toast.error("이미지는 최대 4장까지 첨부할 수 있습니다.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+        uploadFetcher.submit(formData, { method: "POST", action: "/api/upload", encType: "multipart/form-data" });
+
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    // Handle Upload Result
+    useEffect(() => {
+        if (uploadFetcher.state === "idle" && uploadFetcher.data) {
+            const result = uploadFetcher.data as any;
+            if (result.success && result.media) {
+                setNewAttachments(prev => [...prev, result.media]);
+            } else if (result.error) {
+                toast.error(result.error);
+            }
+        }
+    }, [uploadFetcher.state, uploadFetcher.data]);
+
+    const removeExisting = (mediaId: string) => {
+        setExistingMedia(prev => prev.filter(m => m.id !== mediaId));
+        setDeletedMediaIds(prev => [...prev, mediaId]);
+    };
+
+    const removeNew = (index: number) => {
+        setNewAttachments(prev => prev.filter((_, i) => i !== index));
     };
     const handleLike = (e: React.MouseEvent) => { /* ... */
         e.stopPropagation();
@@ -404,6 +470,68 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                                 className="min-h-[150px] text-lg resize-none border-none focus-visible:ring-0 p-0"
                                 placeholder="무슨 일이 일어나고 있나요?"
                             />
+
+                            {/* Edit Media Preview */}
+                            <div className="flex gap-2 overflow-x-auto py-2 mt-2">
+                                {/* Existing Media */}
+                                {existingMedia.map((m) => (
+                                    <div key={m.id} className="relative w-20 h-20 rounded-md overflow-hidden border border-border flex-shrink-0 group">
+                                        {m.type === 'VIDEO' ? (
+                                            <video src={m.url} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <img src={m.url} alt="media" className="w-full h-full object-cover" />
+                                        )}
+                                        <button
+                                            onClick={() => removeExisting(m.id)}
+                                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
+                                        >
+                                            <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                ))}
+                                {/* New Media */}
+                                {newAttachments.map((m, idx) => (
+                                    <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border flex-shrink-0 group">
+                                        {m.type === 'video' ? (
+                                            <video src={m.url} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <img src={m.url} alt="new media" className="w-full h-full object-cover" />
+                                        )}
+                                        <button
+                                            onClick={() => removeNew(idx)}
+                                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
+                                        >
+                                            <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {/* Uploading Indicator */}
+                                {uploadFetcher.state !== "idle" && (
+                                    <div className="w-20 h-20 rounded-md border border-border flex items-center justify-center bg-secondary/50 animate-pulse">
+                                        <span className="text-[10px] text-muted-foreground">업로드...</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Add Media Button */}
+                            <div className="mt-2">
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileSelect}
+                                    accept="image/*,video/*"
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={uploadFetcher.state !== "idle" || (existingMedia.length + newAttachments.length >= 4)}
+                                    className="p-2 hover:bg-primary/10 rounded-full transition-colors text-primary disabled:opacity-50"
+                                >
+                                    <HugeiconsIcon icon={Image01Icon} strokeWidth={2} className="h-5 w-5" />
+                                </button>
+                            </div>
                         </div>
                         <DialogFooter>
                             <DialogClose>
