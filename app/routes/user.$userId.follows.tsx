@@ -30,7 +30,6 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     let users: any[] = [];
 
     if (tab === "followers") {
-        // 나를 팔로우하는 사람들
         const followers = await prisma.follow.findMany({
             where: { followingId: targetUserId },
             include: {
@@ -50,7 +49,6 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             isCurrentUser: f.follower.id === currentUserId
         }));
     } else {
-        // 내가 팔로우하는 사람들
         const following = await prisma.follow.findMany({
             where: { followerId: targetUserId },
             include: {

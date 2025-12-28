@@ -3,7 +3,7 @@ import { getSession } from "~/lib/auth-utils.server";
 import { useSession } from "~/lib/auth-client";
 import { useLoaderData, useFetcher, useSearchParams, Link } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Settings01Icon } from "@hugeicons/core-free-icons";
+import { Settings01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 import { TweetCompose } from "~/components/tweet/tweet-compose";
 import { TweetCard } from "~/components/tweet/tweet-card";
 import { LoadingSpinner } from "~/components/ui/loading-spinner";
@@ -243,9 +243,14 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-bold">홈</h1>
-        <button className="p-2 hover:bg-accent rounded-full transition-colors">
-          <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <Link to="/search" className="p-2 -mr-2 hover:bg-accent rounded-full transition-colors">
+            <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="h-5 w-5" />
+          </Link>
+          <button className="p-2 hover:bg-accent rounded-full transition-colors">
+            <HugeiconsIcon icon={Settings01Icon} strokeWidth={2} className="h-5 w-5" />
+          </button>
+        </div>
       </header>
 
       {/* Tabs */}
