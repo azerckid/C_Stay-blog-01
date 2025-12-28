@@ -127,12 +127,8 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     useEffect(() => {
         if (likeFetcher.state === "idle" && likeFetcher.data) {
             const result = likeFetcher.data as any;
-            if (result.success) {
-                // 서버 상태로 최종 동기화 (혹시 모를 불일치 방지)
-                setLiked(result.liked);
-                setLikeCount(result.count);
-            } else {
-                // 에러 시 롤백
+            if (!result.success) {
+                // 에러 발생 시에만 롤백 수행
                 setLiked(!liked);
                 setLikeCount(prev => liked ? prev - 1 : prev + 1);
                 toast.error(result.error || "좋아요 처리에 실패했습니다.");
