@@ -14,6 +14,9 @@ const createTweetSchema = z.object({
 
 export async function loader({ request }: LoaderFunctionArgs) {
     try {
+        const session = await getSession(request);
+        const userId = session?.user?.id;
+
         const tweets = await prisma.tweet.findMany({
             where: {
                 deletedAt: null, // Soft Delete: 삭제되지 않은 트윗만 조회
@@ -28,7 +31,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
                         replies: true,
                         retweets: true,
                     }
-                }
+                },
+                // 현재 로그인한 사용자가 좋아요/리트윗/북마크 했는지 확인
+                likes: userId ? {
+                    where: { userId },
+                    select: { userId: true }
+                } : false,
             }
         });
 
@@ -49,6 +57,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 retweets: tweet._count.retweets,
                 views: "0",
             },
+            isLiked: tweet.likes?.length > 0, // 좋아요 여부 (배열이 비어있지 않으면 true)
             location: tweet.locationName ? {
                 name: tweet.locationName,
                 city: tweet.city,
