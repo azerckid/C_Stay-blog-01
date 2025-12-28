@@ -49,6 +49,7 @@ interface TweetCardProps {
         views: string;
     };
     isLiked?: boolean; // 좋아요 여부 추가
+    isRetweeted?: boolean; // 리트윗 여부 추가
     media?: {
         type: "IMAGE" | "VIDEO";
         url: string;
@@ -57,11 +58,12 @@ interface TweetCardProps {
 
 import { useNavigate } from "react-router";
 
-export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, media }: TweetCardProps) {
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media }: TweetCardProps) {
     const navigate = useNavigate();
     const { data: session } = useSession();
     const fetcher = useFetcher();
     const likeFetcher = useFetcher(); // 좋아요 전용 fetcher
+    const retweetFetcher = useFetcher(); // 리트윗 전용 fetcher
     const revalidator = useRevalidator();
     const [isEditing, setIsEditing] = useState(false);
     const [editContent, setEditContent] = useState(content);
@@ -69,6 +71,8 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     // 낙관적 UI를 위한 로컬 상태
     const [liked, setLiked] = useState(isLiked);
     const [likeCount, setLikeCount] = useState(stats?.likes ?? 0);
+    const [retweeted, setRetweeted] = useState(isRetweeted);
+    const [retweetCount, setRetweetCount] = useState(stats?.retweets ?? 0);
 
     const isOwner = session?.user?.id === user.id;
 
@@ -117,6 +121,25 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         );
     };
 
+    const handleRetweet = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!session) {
+            toast.error("로그인이 필요합니다.");
+            return;
+        }
+        if (!id) return;
+
+        // 낙관적 업데이트
+        const newRetweeted = !retweeted;
+        setRetweeted(newRetweeted);
+        setRetweetCount(prev => newRetweeted ? prev + 1 : prev - 1);
+
+        retweetFetcher.submit(
+            { tweetId: id },
+            { method: "POST", action: "/api/retweets" }
+        );
+    };
+
     // 좋아요 API 응답 처리
     useEffect(() => {
         if (likeFetcher.state === "idle" && likeFetcher.data) {
@@ -129,6 +152,19 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             }
         }
     }, [likeFetcher.state, likeFetcher.data]);
+
+    // 리트윗 API 응답 처리
+    useEffect(() => {
+        if (retweetFetcher.state === "idle" && retweetFetcher.data) {
+            const result = retweetFetcher.data as any;
+            if (!result.success) {
+                // 에러 발생 시에만 롤백 수행
+                setRetweeted(!retweeted);
+                setRetweetCount(prev => retweeted ? prev - 1 : prev + 1);
+                toast.error(result.error || "리트윗 처리에 실패했습니다.");
+            }
+        }
+    }, [retweetFetcher.state, retweetFetcher.data]);
 
 
     useEffect(() => {
@@ -231,11 +267,27 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                         <span className="text-xs">{stats?.replies ?? 0}</span>
                     </button>
 
-                    <button className="flex items-center gap-2 group/action hover:text-green-500 transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="p-2 group-hover/action:bg-green-500/10 rounded-full transition-colors">
-                            <HugeiconsIcon icon={RepeatIcon} strokeWidth={2} className="h-4.5 w-4.5" />
+                    <button
+                        onClick={handleRetweet}
+                        className={cn(
+                            "flex items-center gap-2 group/action transition-colors pr-3",
+                            retweeted ? "text-green-500" : "hover:text-green-500"
+                        )}
+                    >
+                        <div className={cn(
+                            "p-2 rounded-full transition-colors",
+                            retweeted ? "bg-green-500/10" : "group-hover/action:bg-green-500/10"
+                        )}>
+                            <HugeiconsIcon
+                                icon={RepeatIcon}
+                                strokeWidth={retweeted ? 0 : 2}
+                                className={cn(
+                                    "h-4.5 w-4.5",
+                                    retweeted && "fill-current"
+                                )}
+                            />
                         </div>
-                        <span className="text-xs">{stats?.retweets ?? 0}</span>
+                        <span className={cn("text-xs", retweeted && "text-green-500")}>{retweetCount}</span>
                     </button>
 
                     <button
