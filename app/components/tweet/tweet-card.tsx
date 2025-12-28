@@ -70,12 +70,6 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const [liked, setLiked] = useState(isLiked);
     const [likeCount, setLikeCount] = useState(stats?.likes ?? 0);
 
-    // Props가 변경되면 로컬 상태 업데이트 (피드 갱신 시 동기화)
-    useEffect(() => {
-        setLiked(isLiked);
-        setLikeCount(stats?.likes ?? 0);
-    }, [isLiked, stats?.likes]);
-
     const isOwner = session?.user?.id === user.id;
 
     const handleDelete = () => {
