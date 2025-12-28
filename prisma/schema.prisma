@@ -20,6 +20,7 @@ model User {
   updatedAt     DateTime @updatedAt
   emailVerified Boolean  @default(false)
   avatarUrl     String?
+  bio           String?
   status        String   @default("OFFLINE")
 
   // 관계 설정
