@@ -14,60 +14,134 @@ import { DateTime } from "luxon";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const session = await getSession(request);
+  const userId = session?.user?.id;
   const url = new URL(request.url);
-  const cursor = url.searchParams.get("cursor");
+  const cursor = url.searchParams.get("cursor"); // ISO String
   const limit = 20;
 
-  const tweets = await prisma.tweet.findMany({
+  // 1. 일반 트윗 조회
+  const tweetsPromise = prisma.tweet.findMany({
     where: {
-      deletedAt: null, // Soft Delete: 삭제되지 않은 트윗만 조회
-      ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}), // 커서 기반 페이지네이션 (createdAt 기준)
+      deletedAt: null,
+      ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
     },
-    take: limit + 1, // 다음 페이지 존재 여부 확인을 위해 +1
+    take: limit + 1,
     orderBy: { createdAt: "desc" },
     include: {
       user: true,
-      _count: {
-        select: {
-          likes: true,
-          replies: true,
-          retweets: true,
+      _count: { select: { likes: true, replies: true, retweets: true } },
+      likes: userId ? { where: { userId }, select: { userId: true } } : false,
+      retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+    }
+  });
+
+  // 2. 리트윗 조회 (삭제되지 않은 원본 트윗이 있는 경우만)
+  // 주의: Prisma는 Relation 기반 필터링이 가능합니다.
+  const retweetsPromise = prisma.retweet.findMany({
+    where: {
+      ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
+      tweet: { deletedAt: null } // 원본이 삭제되지 않은 것만
+    },
+    take: limit + 1,
+    orderBy: { createdAt: "desc" },
+    include: {
+      user: true, // 리트윗한 사람
+      tweet: { // 원본 트윗
+        include: {
+          user: true, // 원본 작성자
+          _count: { select: { likes: true, replies: true, retweets: true } },
+          likes: userId ? { where: { userId }, select: { userId: true } } : false,
+          retweets: userId ? { where: { userId }, select: { userId: true } } : false,
         }
       }
     }
   });
 
-  const hasNextPage = tweets.length > limit;
-  const paginatedTweets = hasNextPage ? tweets.slice(0, limit) : tweets;
-  const nextCursor = paginatedTweets.length > 0 ? paginatedTweets[paginatedTweets.length - 1].createdAt.toISOString() : null;
+  const [tweets, retweets] = await Promise.all([tweetsPromise, retweetsPromise]);
 
-  const formattedTweets = paginatedTweets.map(tweet => ({
-    id: tweet.id,
-    content: tweet.content,
-    createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-    fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
-    user: {
-      id: tweet.user.id,
-      name: tweet.user.name || "알 수 없음",
-      username: tweet.user.email.split("@")[0],
-      image: tweet.user.image,
-    },
-    stats: {
-      likes: tweet._count.likes,
-      replies: tweet._count.replies,
-      retweets: tweet._count.retweets,
-      views: "0",
-    },
-    location: tweet.locationName ? {
-      name: tweet.locationName,
-      city: tweet.city,
-      country: tweet.country,
-      travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
-    } : undefined
-  }));
+  // 3. 두 리스트 병합 및 정렬 (createdAt 기준 내림차순)
+  // 타입 통일을 위해 임시 객체 구조 사용
+  const combinedFeed = [
+    ...tweets.map(t => ({ type: "tweet", data: t, sortKey: t.createdAt })),
+    ...retweets.map(r => ({ type: "retweet", data: r, sortKey: r.createdAt }))
+  ].sort((a, b) => b.sortKey.getTime() - a.sortKey.getTime());
 
-  return { 
-    session, 
+  // 4. 페이지네이션 슬라이싱
+  const hasNextPage = combinedFeed.length > limit;
+  const paginatedFeed = hasNextPage ? combinedFeed.slice(0, limit) : combinedFeed;
+  const nextCursor = paginatedFeed.length > 0 ? paginatedFeed[paginatedFeed.length - 1].sortKey.toISOString() : null;
+
+  // 5. 포맷팅
+  const formattedTweets = paginatedFeed.map(item => {
+    if (item.type === "tweet") {
+      const tweet = item.data as typeof tweets[0];
+      return {
+        id: tweet.id,
+        content: tweet.content,
+        createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+        fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+        user: {
+          id: tweet.user.id,
+          name: tweet.user.name || "알 수 없음",
+          username: tweet.user.email.split("@")[0],
+          image: tweet.user.image,
+        },
+        stats: {
+          likes: tweet._count.likes,
+          replies: tweet._count.replies,
+          retweets: tweet._count.retweets,
+          views: "0",
+        },
+        isLiked: tweet.likes && tweet.likes.length > 0,
+        isRetweeted: tweet.retweets && tweet.retweets.length > 0,
+        location: tweet.locationName ? {
+          name: tweet.locationName,
+          city: tweet.city,
+          country: tweet.country,
+          travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
+        } : undefined,
+        retweetedBy: undefined
+      };
+    } else {
+      // 리트윗인 경우
+      const retweetData = item.data as typeof retweets[0];
+      const tweet = retweetData.tweet; // 원본 트윗
+      return {
+        id: tweet.id,
+        content: tweet.content,
+        createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전", // 원본 작성일
+        fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+        user: {
+          id: tweet.user.id, // 원본 작성자
+          name: tweet.user.name || "알 수 없음",
+          username: tweet.user.email.split("@")[0],
+          image: tweet.user.image,
+        },
+        stats: {
+          likes: tweet._count.likes,
+          replies: tweet._count.replies,
+          retweets: tweet._count.retweets,
+          views: "0",
+        },
+        isLiked: tweet.likes && tweet.likes.length > 0,
+        isRetweeted: tweet.retweets && tweet.retweets.length > 0,
+        location: tweet.locationName ? {
+          name: tweet.locationName,
+          city: tweet.city,
+          country: tweet.country,
+          travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
+        } : undefined,
+        retweetedBy: { // 리트윗한 사람 정보
+          name: retweetData.user.name || "알 수 없음",
+          username: retweetData.user.email.split("@")[0],
+          retweetedAt: DateTime.fromJSDate(retweetData.createdAt).setLocale("ko").toRelative()
+        }
+      };
+    }
+  });
+
+  return {
+    session,
     tweets: formattedTweets,
     nextCursor: hasNextPage ? nextCursor : null,
   };
@@ -163,7 +237,7 @@ export default function Home() {
             {tweets.map((tweet) => (
               <TweetCard key={tweet.id} {...tweet} />
             ))}
-            
+
             {/* 무한 스크롤 트리거 */}
             {nextCursor && (
               <div ref={loadMoreRef} className="p-4 flex justify-center">
