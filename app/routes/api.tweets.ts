@@ -19,7 +19,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
         const tweets = await prisma.tweet.findMany({
             where: {
-                deletedAt: null, // Soft Delete: 삭제되지 않은 트윗만 조회
+                deletedAt: null, // Soft Delete
             },
             take: 20,
             orderBy: { createdAt: "desc" },
@@ -32,8 +32,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
                         retweets: true,
                     }
                 },
-                // 현재 로그인한 사용자가 좋아요/리트윗/북마크 했는지 확인
+                // 현재 로그인한 사용자의 좋아요 및 리트윗 여부 확인
                 likes: userId ? {
+                    where: { userId },
+                    select: { userId: true }
+                } : false,
+                retweets: userId ? {
                     where: { userId },
                     select: { userId: true }
                 } : false,
@@ -57,7 +61,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 retweets: tweet._count.retweets,
                 views: "0",
             },
-            isLiked: tweet.likes?.length > 0, // 좋아요 여부 (배열이 비어있지 않으면 true)
+            isLiked: tweet.likes && tweet.likes.length > 0,
+            isRetweeted: tweet.retweets && tweet.retweets.length > 0, // 리트윗 여부 추가
             location: tweet.locationName ? {
                 name: tweet.locationName,
                 city: tweet.city,
