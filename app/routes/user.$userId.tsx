@@ -1,11 +1,11 @@
-import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, data, redirect } from "react-router";
+import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, data, redirect, Link } from "react-router";
 import { auth } from "~/lib/auth";
 import { prisma } from "~/lib/prisma.server";
 import { FollowButton } from "~/components/user/follow-button";
 import { TweetCard } from "~/components/tweet/tweet-card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
-import { CalendarIcon, MapPinIcon, LinkIcon } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { DateTime } from "luxon";
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
@@ -19,22 +19,7 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const session = await auth.api.getSession({ headers: request.headers });
 
-    // params.username is actually email prefix for now, or we can use ID.
-    // Plan says /user/:username or /profile/:id. 
-    // Let's support ID first for robustness, but 'username' is prettier.
-    // For now, let's assume the params is actually 'userId' or we search by email.
-    // But routing defines it.
-
-    // Wait, I need to define the route first. 
-    // Let's assume the route is "user/:userId" for simplicity now, 
-    // or use email username if we implement that mapping.
-    // Given current schema doesn't strictly have 'username' field (it has email, name), 
-    // let's stick to userId for functionality, or email split.
-
-    // Actually, schema.prisma has `email` but NO `username` unique field.
-    // So we MUST use ID or Email to identify.
-    // Using ID is safer.
-
+    // params.userId is expected
     const userId = params.userId;
     if (!userId) throw new Response("User ID Required", { status: 400 });
 
@@ -87,14 +72,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         ...tweet,
         isLiked: tweet.likes.length > 0,
         isRetweeted: tweet.retweets.length > 0,
-        // Fix type mismatch for retweetedAt
-        retweetedBy: tweet.isRetweet ? {
+        // Fix type mismatch for retweetedAt if needed
+        retweetedBy: tweet.isRetweet && tweet.originalTweet ? {
             username: tweet.user.name || "Unknown",
             userId: tweet.user.id,
-            // The createdAt of the RETWEET action is needed here.
-            // But we just fetched the Tweet model. If it's a retweet, the Tweet model ITSELF is the container.
-            // So tweet.createdAt IS the retweet time.
-            retweetedAt: tweet.createdAt,
+            retweetedAt: tweet.createdAt, // The retweet action time
         } : undefined
     }));
 
@@ -157,27 +139,26 @@ export default function UserProfile() {
                     </div>
 
                     <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 text-slate-500 text-sm">
-                        {/* Phase 8.5 stuff placeholders */}
                         <div className="flex items-center gap-1">
                             <CalendarIcon className="w-4 h-4" />
                             <span>가입일: {DateTime.fromJSDate(new Date(profileUser.createdAt)).toFormat("yyyy년 M월")}</span>
                         </div>
                     </div>
 
-                    {/* Follow Counts */}
+                    {/* Follow Counts - Clickable */}
                     <div className="flex gap-4 mt-4 text-sm">
-                        <div className="hover:underline cursor-pointer">
-                            <span className="font-bold text-slate-900 dark:text-white">{profileUser._count.following}</span>
-                            <span className="text-slate-500 ml-1">팔로잉</span>
-                        </div>
-                        <div className="hover:underline cursor-pointer">
-                            <span className="font-bold text-slate-900 dark:text-white">{profileUser._count.followedBy}</span>
-                            <span className="text-slate-500 ml-1">팔로워</span>
-                        </div>
+                        <Link to={`/user/${profileUser.id}/follows?tab=following`} className="hover:underline decoration-foreground/50 cursor-pointer flex items-center">
+                            <span className="font-bold text-slate-900 dark:text-white mr-1">{profileUser._count.following}</span>
+                            <span className="text-slate-500">팔로잉</span>
+                        </Link>
+                        <Link to={`/user/${profileUser.id}/follows?tab=followers`} className="hover:underline decoration-foreground/50 cursor-pointer flex items-center">
+                            <span className="font-bold text-slate-900 dark:text-white mr-1">{profileUser._count.followedBy}</span>
+                            <span className="text-slate-500">팔로워</span>
+                        </Link>
                     </div>
                 </div>
 
-                {/* Tabs (Tweets, Media, Likes, etc.) - Placeholder for now, showing Tweets default */}
+                {/* Tabs (Tweets, Media, Likes, etc.) - Placeholder */}
                 <div className="border-b border-slate-200 dark:border-slate-800 mb-0">
                     <div className="flex">
                         <div className="px-4 py-3 font-semibold border-b-4 border-blue-500 text-slate-900 dark:text-white cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
@@ -211,7 +192,7 @@ export default function UserProfile() {
                             user={{
                                 id: tweet.user.id,
                                 name: tweet.user.name || "Unknown",
-                                username: tweet.user.email.split("@")[0], // Fallback username
+                                username: tweet.user.email.split("@")[0],
                                 image: tweet.user.image || tweet.user.avatarUrl
                             }}
                             content={tweet.content}
@@ -221,16 +202,15 @@ export default function UserProfile() {
                                 replies: tweet._count.replies,
                                 retweets: tweet._count.retweets,
                                 likes: tweet._count.likes,
-                                views: "0" // Placeholder
+                                views: "0"
                             }}
                             isLiked={tweet.isLiked}
                             isRetweeted={tweet.isRetweeted}
                             media={tweet.media.map((m: any) => ({ type: m.type as "IMAGE" | "VIDEO", url: m.url }))}
-                            // Re-map properly:
-                            retweetedBy={tweet.isRetweet && tweet.retweetedBy ? {
-                                name: tweet.retweetedBy.username, // In loader I put name into username field? No, I put user.name into username field. 
-                                username: "user", // Placeholder or fetch real ID
-                                retweetedAt: undefined // Optional
+                            retweetedBy={tweet.retweetedBy ? {
+                                name: tweet.retweetedBy.username,
+                                username: "user",
+                                retweetedAt: undefined
                             } : undefined}
                         />
                     ))

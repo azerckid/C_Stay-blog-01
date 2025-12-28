@@ -15,4 +15,6 @@ export default [
     route("login", "routes/login.tsx"),
     route("signup", "routes/signup.tsx"),
     route("user/:userId", "routes/user.$userId.tsx"),
+    route("user/:userId/follows", "routes/user.$userId.follows.tsx"),
+    route("search", "routes/search.tsx"),
 ] satisfies RouteConfig;
