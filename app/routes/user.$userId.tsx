@@ -1,5 +1,4 @@
-import { type LoaderFunctionArgs, type MetaFunction, data, redirect } from "react-router";
-import { type Route } from "./+types/user.$userId";
+import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, data, redirect } from "react-router";
 import { auth } from "~/lib/auth";
 import { prisma } from "~/lib/prisma.server";
 import { FollowButton } from "~/components/user/follow-button";
@@ -9,10 +8,11 @@ import { Button } from "~/components/ui/button";
 import { CalendarIcon, MapPinIcon, LinkIcon } from "lucide-react";
 import { DateTime } from "luxon";
 
-export const meta: MetaFunction = ({ data }: Route.MetaArgs) => {
+export const meta: MetaFunction<typeof loader> = ({ data }) => {
+    if (!data) return [{ title: "사용자 프로필 / STAYnC" }];
     return [
-        { title: `${data?.profileUser.name} (@${data?.profileUser.email.split("@")[0]}) / STAYnC` },
-        { name: "description", content: data?.profileUser.bio || "STAYnC 사용자 프로필" },
+        { title: `${data.profileUser.name} (@${data.profileUser.email.split("@")[0]}) / STAYnC` },
+        { name: "description", content: data.profileUser.bio || "STAYnC 사용자 프로필" },
     ];
 };
 
@@ -110,7 +110,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     });
 };
 
-export default function UserProfile({ loaderData }: Route.ComponentProps) {
+export default function UserProfile() {
+    const loaderData = useLoaderData<typeof loader>();
     const { profileUser, tweets, isCurrentUser, isFollowing, currentUserId } = loaderData;
 
     return (
