@@ -5,12 +5,14 @@ import { getSession } from "~/lib/auth-utils.server";
 import { z } from "zod";
 
 const createTweetSchema = z.object({
-    content: z.string().min(1, "내용을 입력해주세요.").max(280, "280자 이내로 입력해주세요."),
+    content: z.string().min(0, "내용을 입력해주세요.").max(280, "280자 이내로 입력해주세요.")
+        .or(z.string().length(0)), // Allow empty content if media is present (handled in logic)
     locationName: z.string().optional().nullable(),
     country: z.string().optional().nullable(),
     city: z.string().optional().nullable(),
     travelDate: z.string().optional().nullable(),
     parentId: z.string().optional().nullable(),
+    media: z.string().optional().nullable(), // JSON string of attachments
 });
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -27,6 +29,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             orderBy: { createdAt: "desc" },
             include: {
                 user: true,
+                media: true, // Include Media
                 _count: {
                     select: {
                         likes: true,
@@ -57,6 +60,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 username: tweet.user.email.split("@")[0],
                 image: tweet.user.image,
             },
+            media: tweet.media.map(m => ({
+                id: m.id,
+                url: m.url,
+                type: m.type,
+                altText: m.altText
+            })),
             stats: {
                 likes: tweet._count.likes,
                 replies: tweet._count.replies,
@@ -97,22 +106,52 @@ export async function action({ request }: ActionFunctionArgs) {
                 city: formData.get("city") || undefined,
                 travelDate: formData.get("travelDate") || undefined,
                 parentId: formData.get("parentId") || undefined,
+                media: formData.get("media") || undefined,
             };
 
             const validatedData = createTweetSchema.parse(payload);
 
+            // Content validation adjustment: Check if empty content AND no media
+            const hasMedia = !!validatedData.media;
+            const content = validatedData.content || ""; // Allow empty string
+
+            if (!content.trim() && !hasMedia) {
+                return data({ error: "내용을 입력하거나 이미지를 첨부해주세요." }, { status: 400 });
+            }
+
+            let mediaData: any[] = [];
+            if (validatedData.media) {
+                try {
+                    const parsedMedia = JSON.parse(validatedData.media);
+                    if (Array.isArray(parsedMedia)) {
+                        mediaData = parsedMedia.map((m: any, index: number) => ({
+                            url: m.url,
+                            type: m.type === 'video' ? 'VIDEO' : 'IMAGE', // Ensure uppercase for DB enum/string convention
+                            thumbnailUrl: m.thumbnailUrl, // Optional
+                            order: index
+                        }));
+                    }
+                } catch (e) {
+                    console.error("Media Parse Error", e);
+                }
+            }
+
             const tweet = await prisma.tweet.create({
                 data: {
-                    content: validatedData.content,
+                    content: content,
                     userId: session.user.id,
                     locationName: validatedData.locationName,
                     country: validatedData.country,
                     city: validatedData.city,
                     travelDate: validatedData.travelDate ? new Date(validatedData.travelDate as unknown as string) : undefined,
                     parentId: validatedData.parentId,
+                    media: {
+                        create: mediaData
+                    }
                 },
                 include: {
                     user: true,
+                    media: true
                 }
             });
 
