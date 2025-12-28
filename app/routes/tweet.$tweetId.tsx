@@ -32,7 +32,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             retweets: userId ? { where: { userId }, select: { userId: true } } : false,
             replies: {
                 where: { deletedAt: null },
-                orderBy: { createdAt: "asc" }, // 답글은 오래된 순? 최신 순? 보통 최신순 or 인기순. 여기선 오래된 순이 대화 흐름 보기 좋을수도? 일단 asc.
+                orderBy: [
+                    { likes: { _count: "desc" } }, // 인기순 (좋아요 많은 순)
+                    { createdAt: "desc" } // 최신순
+                ],
                 include: {
                     user: true,
                     _count: { select: { likes: true, replies: true, retweets: true } },

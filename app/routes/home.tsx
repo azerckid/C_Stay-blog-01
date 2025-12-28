@@ -35,6 +35,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // 필터 조건 구성
   const whereCondition: any = {
     deletedAt: null,
+    parentId: null, // 홈 피드에는 답글 제외 (루트 트윗만 표시)
     ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
   };
 
