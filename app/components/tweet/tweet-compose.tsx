@@ -6,7 +6,12 @@ import { useState, useEffect } from "react";
 import { useFetcher, useRevalidator } from "react-router";
 import { toast } from "sonner";
 
-export function TweetCompose() {
+interface TweetComposeProps {
+    parentId?: string;
+    placeholder?: string;
+}
+
+export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나고 있나요?" }: TweetComposeProps) {
     const { data: session } = useSession();
     const [content, setContent] = useState("");
     const fetcher = useFetcher();
@@ -17,14 +22,14 @@ export function TweetCompose() {
         if (fetcher.state === "idle" && fetcher.data) {
             const result = fetcher.data as any;
             if (result.success) {
-                toast.success("트윗이 게시되었습니다!");
+                toast.success(parentId ? "답글이 게시되었습니다!" : "트윗이 게시되었습니다!");
                 setContent("");
                 revalidator.revalidate(); // 데이터 갱신 트리거
             } else if (result.error) {
                 toast.error(result.error);
             }
         }
-    }, [fetcher.state, fetcher.data]);
+    }, [fetcher.state, fetcher.data, parentId]);
 
     const isSubmitting = fetcher.state !== "idle";
 
@@ -33,7 +38,10 @@ export function TweetCompose() {
 
         // server-side action 호출
         fetcher.submit(
-            { content },
+            {
+                content,
+                ...(parentId ? { parentId } : {})
+            },
             { method: "POST", action: "/api/tweets" }
         );
     };
@@ -56,7 +64,7 @@ export function TweetCompose() {
                 <textarea
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="무슨 일이 일어나고 있나요?"
+                    placeholder={placeholder}
                     disabled={isSubmitting}
                     className="w-full bg-transparent text-xl outline-none resize-none pt-2 min-h-[100px] placeholder:text-muted-foreground/60 disabled:opacity-50"
                 />

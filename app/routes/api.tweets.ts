@@ -10,6 +10,7 @@ const createTweetSchema = z.object({
     country: z.string().optional().nullable(),
     city: z.string().optional().nullable(),
     travelDate: z.string().optional().nullable(),
+    parentId: z.string().optional().nullable(),
 });
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -20,6 +21,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         const tweets = await prisma.tweet.findMany({
             where: {
                 deletedAt: null, // Soft Delete
+                parentId: null, // Only fetch root tweets (exclude replies)
             },
             take: 20,
             orderBy: { createdAt: "desc" },
@@ -94,6 +96,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 country: formData.get("country") || undefined,
                 city: formData.get("city") || undefined,
                 travelDate: formData.get("travelDate") || undefined,
+                parentId: formData.get("parentId") || undefined,
             };
 
             const validatedData = createTweetSchema.parse(payload);
@@ -106,6 +109,7 @@ export async function action({ request }: ActionFunctionArgs) {
                     country: validatedData.country,
                     city: validatedData.city,
                     travelDate: validatedData.travelDate ? new Date(validatedData.travelDate as unknown as string) : undefined,
+                    parentId: validatedData.parentId,
                 },
                 include: {
                     user: true,
