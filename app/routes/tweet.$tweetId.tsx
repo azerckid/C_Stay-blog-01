@@ -7,6 +7,7 @@ import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { TweetCard } from "~/components/tweet/tweet-card";
 import { TweetCompose } from "~/components/tweet/tweet-compose";
 import { getSession } from "~/lib/auth-utils.server";
+import { Map, AdvancedMarker } from "@vis.gl/react-google-maps";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
     const tweetId = params.tweetId;
@@ -78,6 +79,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         isRetweeted: t.retweets && t.retweets.length > 0,
         location: t.locationName ? {
             name: t.locationName,
+            latitude: t.latitude,
+            longitude: t.longitude,
+            address: t.address,
             city: t.city,
             country: t.country,
             travelDate: t.travelDate ? new Date(t.travelDate).toLocaleDateString() : undefined,
@@ -126,6 +130,21 @@ export default function TweetDetail() {
             {/* Tweet Detail */}
             <main className="pb-20">
                 <TweetCard {...tweet} />
+
+                {/* Google Map Display */}
+                {tweet.location?.latitude && (
+                    <div className="w-full h-64 border-y border-border">
+                        <Map
+                            defaultCenter={{ lat: tweet.location.latitude, lng: tweet.location.longitude }}
+                            defaultZoom={15}
+                            mapId="DEMO_MAP_ID"
+                            className="w-full h-full"
+                            disableDefaultUI={true}
+                        >
+                            <AdvancedMarker position={{ lat: tweet.location.latitude, lng: tweet.location.longitude }} />
+                        </Map>
+                    </div>
+                )}
 
                 {/* Reply Form */}
                 <div className="border-b border-border">

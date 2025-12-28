@@ -5,6 +5,7 @@ import { cn } from "~/lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { useFetcher, useRevalidator } from "react-router";
 import { toast } from "sonner";
+import { LocationPickerDialog, type LocationData } from "~/components/maps/location-picker-dialog";
 
 interface TweetComposeProps {
     parentId?: string;
@@ -21,6 +22,8 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
     const { data: session } = useSession();
     const [content, setContent] = useState("");
     const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
+    const [location, setLocation] = useState<LocationData | null>(null);
+    const [locationPickerOpen, setLocationPickerOpen] = useState(false);
 
     const fetcher = useFetcher(); // Tweet submission
     const uploadFetcher = useFetcher(); // File upload
@@ -35,6 +38,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                 toast.success(parentId ? "답글이 게시되었습니다!" : "트윗이 게시되었습니다!");
                 setContent("");
                 setAttachments([]); // Clear attachments
+                setLocation(null); // Clear location
                 revalidator.revalidate();
             } else if (result.error) {
                 toast.error(result.error);
@@ -65,7 +69,8 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
             {
                 content,
                 ...(parentId ? { parentId } : {}),
-                ...(attachments.length > 0 ? { media: JSON.stringify(attachments) } : {})
+                ...(attachments.length > 0 ? { media: JSON.stringify(attachments) } : {}),
+                ...(location ? { location: JSON.stringify(location) } : {})
             },
             { method: "POST", action: "/api/tweets" }
         );
@@ -121,6 +126,22 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                     className="w-full bg-transparent text-xl outline-none resize-none pt-2 min-h-[100px] placeholder:text-muted-foreground/60 disabled:opacity-50"
                 />
 
+                {/* Location Preview */}
+                {location && (
+                    <div className="flex items-center gap-2">
+                        <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-full flex items-center gap-2 w-fit">
+                            <HugeiconsIcon icon={Location01Icon} className="w-4 h-4" />
+                            <span className="text-sm font-bold">{location.name}</span>
+                            <button
+                                onClick={() => setLocation(null)}
+                                className="hover:bg-primary/20 rounded-full p-0.5"
+                            >
+                                <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Attachments Preview */}
                 {attachments.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto py-2">
@@ -130,7 +151,8 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                                     <video src={media.url} className="w-full h-full object-cover" />
                                 ) : (
                                     <img src={media.url} alt="attachment" className="w-full h-full object-cover" />
-                                )}
+                                )
+                                }
                                 <button
                                     onClick={() => removeAttachment(index)}
                                     type="button"
@@ -179,6 +201,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                             type="button"
                             title="위치"
                             disabled={isSubmitting}
+                            onClick={() => setLocationPickerOpen(true)}
                             className="p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50"
                         >
                             <HugeiconsIcon icon={Location01Icon} strokeWidth={2} className="h-5 w-5" />
@@ -206,6 +229,12 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                     </button>
                 </div>
             </div>
+
+            <LocationPickerDialog
+                open={locationPickerOpen}
+                onOpenChange={setLocationPickerOpen}
+                onLocationSelect={setLocation}
+            />
         </div>
     );
 }

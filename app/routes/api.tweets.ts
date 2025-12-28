@@ -8,9 +8,7 @@ import { z } from "zod";
 const createTweetSchema = z.object({
     content: z.string().min(0, "내용을 입력해주세요.").max(280, "280자 이내로 입력해주세요.")
         .or(z.string().length(0)), // Allow empty content if media is present (handled in logic)
-    locationName: z.string().optional().nullable(),
-    country: z.string().optional().nullable(),
-    city: z.string().optional().nullable(),
+    location: z.string().optional().nullable(), // JSON string of location data
     travelDate: z.string().optional().nullable(),
     parentId: z.string().optional().nullable(),
     media: z.string().optional().nullable(), // JSON string of attachments
@@ -77,6 +75,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
             isRetweeted: tweet.retweets && tweet.retweets.length > 0, // 리트윗 여부 추가
             location: tweet.locationName ? {
                 name: tweet.locationName,
+                latitude: tweet.latitude,
+                longitude: tweet.longitude,
+                address: tweet.address,
                 city: tweet.city,
                 country: tweet.country,
                 travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
@@ -102,9 +103,7 @@ export async function action({ request }: ActionFunctionArgs) {
             const formData = await request.formData();
             const payload = {
                 content: formData.get("content"),
-                locationName: formData.get("locationName") || undefined,
-                country: formData.get("country") || undefined,
-                city: formData.get("city") || undefined,
+                location: formData.get("location") || undefined,
                 travelDate: formData.get("travelDate") || undefined,
                 parentId: formData.get("parentId") || undefined,
                 media: formData.get("media") || undefined,
@@ -138,13 +137,28 @@ export async function action({ request }: ActionFunctionArgs) {
                 }
             }
 
+            let locationData: any = {};
+            if (validatedData.location) {
+                try {
+                    const parsed = JSON.parse(validatedData.location);
+                    locationData = {
+                        locationName: parsed.name,
+                        latitude: parsed.latitude,
+                        longitude: parsed.longitude,
+                        address: parsed.address,
+                        country: parsed.country,
+                        city: parsed.city
+                    };
+                } catch (e) {
+                    console.error("Location Parse Error", e);
+                }
+            }
+
             const tweet = await prisma.tweet.create({
                 data: {
                     content: content,
                     userId: session.user.id,
-                    locationName: validatedData.locationName,
-                    country: validatedData.country,
-                    city: validatedData.city,
+                    ...locationData,
                     travelDate: validatedData.travelDate ? new Date(validatedData.travelDate as unknown as string) : undefined,
                     parentId: validatedData.parentId,
                     media: {

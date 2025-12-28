@@ -62,11 +62,16 @@ interface TweetCardProps {
         username: string;
         retweetedAt?: string;
     };
+    location?: {
+        name: string;
+        latitude?: number;
+        longitude?: number;
+    };
 }
-
+import { Location01Icon } from "@hugeicons/core-free-icons";
 import { useNavigate } from "react-router";
 
-export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media, retweetedBy }: TweetCardProps) {
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media, retweetedBy, location }: TweetCardProps) {
     const navigate = useNavigate();
     const { data: session } = useSession();
     // ... (기존 hook 및 state 유지)
@@ -335,6 +340,13 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                         {content}
                     </p>
 
+                    {/* Location Pill */}
+                    {location && (
+                        <div className="flex items-center gap-1 mt-2 text-primary text-sm font-medium w-fit hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); /* TODO: Show map */ }}>
+                            <HugeiconsIcon icon={Location01Icon} className="h-4 w-4" />
+                            <span>{location.name}</span>
+                        </div>
+                    )}
 
                     {/* Media Display */}
                     {media && media.length > 0 && (
