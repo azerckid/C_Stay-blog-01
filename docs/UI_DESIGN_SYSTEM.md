@@ -353,10 +353,50 @@ box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 - Sonner (Toast 알림용, shadcn/ui를 통해 설치하는 Sonner 래퍼 컴포넌트)
 - 기타 등등
 
+## AI 여행 일지 모드 (AI Travel Log Mode)
+
+여행 현장에서의 생생한 기록을 위해 설계된 전용 인터페이스입니다.
+
+### 시각적 테마: "Night Vision Glass"
+- **배경**: 풀스크린 카메라 뷰 (실시간 프리뷰)
+- **컨트롤 패널**: 다크 글래스모피즘 (Glassmorphism) 효과 적용
+  - `bg-background/60` + `backdrop-blur-xl`
+  - 세련된 외곽선 (`border-white/10`)
+- **포인트 컬러**: Deep Night Blue 전용 액센트 강조
+
+### 주요 UI 요소 및 인터랙션
+
+#### 1. 장소 플로팅 태그 (Location Tag)
+- **위치**: 상단 중앙 또는 우측 상단
+- **디자인**: 컴팩트한 칩 형태, 아이콘 + 장소명
+- **효과**: 은은한 그림자와 반투명 배경
+
+#### 2. 문체 선택 슬라이더 (Writing Style Chips)
+- **옵션**: 감성적(Emotional), 정보 전달(Information), 위트(Witty)
+- **애니메이션**: 선택 시 칩의 배경색이 Primary Blue로 부드럽게 전환
+- **아이콘**: 각 문체의 특징을 나타내는 독창적인 아이콘 사용
+
+#### 3. 음성 인식 컨트롤러 (Voice Controller)
+- **메인 버튼**: 큼직한 원형 버튼, 중앙에 마이크 아이콘
+- **비주얼라이저**: 녹음 중일 때 버튼 주변으로 파형 애니메이션(Waveform) 표시
+- **피드백**: 버튼 주위의 글로우(Glow) 효과로 활성 상태 강조
+
+#### 4. 생성 로딩 애니메이션 (Creation Loader)
+- **컨셉**: "시각과 청각의 결합"
+- **디자인**: 사진의 색감을 추출하여 퍼져나가는 입자 효과 또는 빛무리 애니메이션
+
+### 구현 가이드
+- **컴포넌트 구조**: `LogModeOverlay`가 전체 화면을 덮는 고정 위치(`fixed inset-0`)로 구현
+- **반응형**: 모바일 세로 모드 최적화 (카메라 비율 준수)
+- **애니메이션**: Framer Motion을 활용한 부드러운 패널 슬라이딩 및 버튼 스케일링 효과
+
+---
+
 ## 참고 자료
 
 - 실제 X(트위터) 웹사이트 참고
 - shadcn/ui Nova Preset 문서
 - Tailwind CSS 문서
 - WCAG 접근성 가이드라인
+- **AI 여행 일지 디자인 시안**: [ai_travel_log_overlay_mockup.png]
 

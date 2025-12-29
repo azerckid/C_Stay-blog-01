@@ -3,7 +3,9 @@ import { BottomNav } from "./bottom-nav";
 import { Form, Link } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { Search01Icon as SearchIcon } from "@hugeicons/core-free-icons";
+import { Search01Icon as SearchIcon, AiViewIcon } from "@hugeicons/core-free-icons";
+import { useState } from "react";
+import { LogModeOverlay } from "../ai/log-mode-overlay";
 
 interface MainLayoutProps {
     children: React.ReactNode;
@@ -18,6 +20,8 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children, popularTags }: MainLayoutProps) {
+    const [isAiLogOpen, setIsAiLogOpen] = useState(false);
+
     return (
         <div className="min-h-screen bg-background text-foreground flex justify-center">
             <div className="flex w-full max-w-[1300px]">
@@ -119,6 +123,22 @@ export function MainLayout({ children, popularTags }: MainLayoutProps) {
                 </aside>
 
             </div>
+
+            {/* AI Log Mode Trigger Button (FAB) */}
+            <button
+                onClick={() => setIsAiLogOpen(true)}
+                className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-[60] w-14 h-14 rounded-full bg-primary text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+                title="AI 여행 일지 작성"
+            >
+                <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-20 group-hover:opacity-40" />
+                <HugeiconsIcon icon={AiViewIcon} size={28} className="relative z-10" />
+            </button>
+
+            {/* AI Log Mode Overlay */}
+            <LogModeOverlay
+                isOpen={isAiLogOpen}
+                onClose={() => setIsAiLogOpen(false)}
+            />
 
             {/* Mobile Bottom Navigation */}
             <BottomNav />
