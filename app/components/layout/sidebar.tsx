@@ -8,7 +8,7 @@ import {
     Bookmark02Icon,
     UserIcon,
     MoreHorizontalIcon,
-    QuillWrite01Icon
+    AiViewIcon
 } from "@hugeicons/core-free-icons";
 import { useSession, signOut } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
@@ -29,7 +29,13 @@ const NAV_ITEMS = [
     { label: "프로필", href: "/profile", icon: UserIcon },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+    onAiLogOpen?: () => void;
+    isMobileMenu?: boolean;
+    onClose?: () => void;
+}
+
+export function Sidebar({ onAiLogOpen, isMobileMenu, onClose }: SidebarProps) {
     const { data: session } = useSession();
     const navigate = useNavigate();
 
@@ -56,7 +62,10 @@ export function Sidebar() {
     };
 
     return (
-        <aside className="sticky top-0 h-screen flex flex-col justify-between py-4 px-2 xl:px-4 w-fit xl:w-64 border-r border-border bg-background">
+        <aside className={cn(
+            "sticky top-0 h-screen flex flex-col justify-between py-4 px-2 xl:px-4 border-r border-border bg-background",
+            isMobileMenu ? "w-full border-none" : "w-fit xl:w-64"
+        )}>
             <div className="flex flex-col gap-2">
                 {/* Logo */}
                 <NavLink to="/" className="p-3 w-fit hover:bg-accent rounded-full mb-2">
@@ -76,30 +85,38 @@ export function Sidebar() {
                             <NavLink
                                 key={item.href}
                                 to={href}
+                                onClick={onClose}
                                 className={({ isActive }) =>
                                     cn(
-                                        "flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit xl:w-full",
+                                        "flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit",
+                                        (isMobileMenu || "xl:w-full"),
                                         isActive ? "font-bold text-primary" : "font-normal"
                                     )
                                 }
                             >
                                 <HugeiconsIcon icon={item.icon} strokeWidth={2} className="h-7 w-7" />
-                                <span className="text-xl hidden xl:block">{item.label}</span>
+                                <span className={cn("text-xl", isMobileMenu ? "block" : "hidden xl:block")}>{item.label}</span>
                             </NavLink>
                         );
                     })}
 
                     {/* More Menu */}
-                    <button className="flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit xl:w-full text-left">
+                    <button className={cn("flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit text-left", (isMobileMenu || "xl:w-full"))}>
                         <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-7 w-7" />
-                        <span className="text-xl hidden xl:block">더 보기</span>
+                        <span className={cn("text-xl", isMobileMenu ? "block" : "hidden xl:block")}>더 보기</span>
                     </button>
                 </nav>
 
-                {/* Post Button */}
-                <button className="bg-primary text-white p-3 xl:py-4 xl:px-8 rounded-full font-bold hover:bg-primary/90 transition-all mt-4 w-fit xl:w-full flex items-center justify-center shadow-lg">
-                    <HugeiconsIcon icon={QuillWrite01Icon} strokeWidth={2.5} className="h-7 w-7 xl:hidden" />
-                    <span className="text-lg hidden xl:block">게시하기</span>
+                {/* AI Log Button (Repurposed from Post) */}
+                <button
+                    onClick={onAiLogOpen}
+                    className={cn(
+                        "bg-primary text-white rounded-full font-bold hover:bg-primary/90 transition-all mt-6 flex items-center justify-center shadow-lg",
+                        isMobileMenu ? "h-14 w-14 ml-2" : "p-4 h-14 w-14 xl:h-auto xl:w-full xl:py-4 xl:px-8"
+                    )}
+                >
+                    <HugeiconsIcon icon={AiViewIcon} strokeWidth={2.5} className={cn("h-7 w-7", (!isMobileMenu && "xl:mr-2"))} />
+                    {!isMobileMenu && <span className="text-lg hidden xl:block">AI 여행 일지</span>}
                 </button>
             </div>
 
@@ -108,7 +125,7 @@ export function Sidebar() {
                 <DropdownMenu>
                     <DropdownMenuTrigger
                         render={
-                            <button className="flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors w-fit xl:w-full mt-auto outline-none" />
+                            <button className={cn("flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors mt-auto outline-none", isMobileMenu ? "w-full" : "w-fit xl:w-full")} />
                         }
                     >
                         <div className="h-10 w-10 shrink-0 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border pointer-events-none">
@@ -118,11 +135,11 @@ export function Sidebar() {
                                 <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="h-6 w-6 text-muted-foreground" />
                             )}
                         </div>
-                        <div className="hidden xl:flex flex-col text-left overflow-hidden pointer-events-none">
+                        <div className={cn("flex-col text-left overflow-hidden pointer-events-none", isMobileMenu ? "flex" : "hidden xl:flex")}>
                             <span className="text-sm font-bold truncate">{session.user.name}</span>
                             <span className="text-xs text-muted-foreground truncate">@{session.user.email?.split("@")[0]}</span>
                         </div>
-                        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-5 w-5 ml-auto hidden xl:block text-muted-foreground pointer-events-none" />
+                        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className={cn("h-5 w-5 ml-auto text-muted-foreground pointer-events-none", isMobileMenu ? "block" : "hidden xl:block")} />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-64 mb-2 p-2">
                         <DropdownMenuItem className="p-0 cursor-pointer rounded-lg font-medium">
