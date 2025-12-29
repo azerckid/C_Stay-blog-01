@@ -1,7 +1,8 @@
-import { Link } from "react-router";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
+import { Form, Link } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
+
 import { Search01Icon as SearchIcon } from "@hugeicons/core-free-icons";
 
 interface MainLayoutProps {
@@ -34,7 +35,7 @@ export function MainLayout({ children, popularTags }: MainLayoutProps) {
                 <aside className="hidden lg:block w-[350px] p-4 flex flex-col gap-4">
                     {/* Search Bar */}
                     <div className="sticky top-2 z-10">
-                        <div className="relative group">
+                        <Form action="/search" method="get" className="relative group">
                             <HugeiconsIcon
                                 icon={SearchIcon}
                                 strokeWidth={2}
@@ -42,10 +43,12 @@ export function MainLayout({ children, popularTags }: MainLayoutProps) {
                             />
                             <input
                                 type="text"
+                                name="q"
                                 placeholder="검색"
                                 className="w-full bg-secondary py-3 pl-12 pr-4 rounded-full border border-transparent focus:border-primary focus:bg-background outline-none transition-all"
                             />
-                        </div>
+                        </Form>
+
                     </div>
 
                     {/* Premium/Subscribe (Mockup) */}

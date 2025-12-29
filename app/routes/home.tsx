@@ -139,10 +139,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
         isRetweeted: tweet.retweets && tweet.retweets.length > 0,
         location: tweet.locationName ? {
           name: tweet.locationName,
-          city: tweet.city,
-          country: tweet.country,
-          travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
+          latitude: tweet.latitude || undefined,
+          longitude: tweet.longitude || undefined,
         } : undefined,
+        travelDate: tweet.travelDate?.toISOString(),
         tags: tweet.tags.map(t => ({
           id: t.travelTag.id,
           name: t.travelTag.name,
@@ -181,10 +181,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
         isRetweeted: tweet.retweets && tweet.retweets.length > 0,
         location: tweet.locationName ? {
           name: tweet.locationName,
-          city: tweet.city,
-          country: tweet.country,
-          travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
+          latitude: tweet.latitude || undefined,
+          longitude: tweet.longitude || undefined,
         } : undefined,
+        travelDate: tweet.travelDate?.toISOString(),
         tags: tweet.tags.map(t => ({
           id: t.travelTag.id,
           name: t.travelTag.name,

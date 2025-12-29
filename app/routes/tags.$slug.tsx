@@ -64,7 +64,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             id: tweet.user.id,
             name: tweet.user.name || "알 수 없음",
             username: tweet.user.email.split("@")[0],
-            image: tweet.user.image,
+            image: tweet.user.image || tweet.user.avatarUrl,
         },
         media: tweet.media.map(m => ({
             id: m.id,
@@ -82,13 +82,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         isRetweeted: tweet.retweets && tweet.retweets.length > 0,
         location: tweet.locationName ? {
             name: tweet.locationName,
-            latitude: tweet.latitude,
-            longitude: tweet.longitude,
-            address: tweet.address,
-            city: tweet.city,
-            country: tweet.country,
-            travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
+            latitude: tweet.latitude || undefined,
+            longitude: tweet.longitude || undefined,
         } : undefined,
+        travelDate: tweet.travelDate?.toISOString(),
         tags: tweet.tags.map(t => ({
             id: t.travelTag.id,
             name: t.travelTag.name,
