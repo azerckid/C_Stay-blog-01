@@ -2,7 +2,7 @@ import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-ro
 import { prisma } from "~/lib/prisma.server";
 import { DateTime } from "luxon";
 import { getSession } from "~/lib/auth-utils.server";
-import { deleteFromCloudinary } from "~/lib/cloudinary.server";
+import { deleteFromCloudinary, uploadToCloudinary } from "~/lib/cloudinary.server";
 import { z } from "zod";
 import { generateEmbedding, vectorToBuffer } from "~/lib/gemini.server";
 
@@ -129,11 +129,35 @@ export async function action({ request }: ActionFunctionArgs) {
             const hasMedia = !!validatedData.media;
             const content = validatedData.content || ""; // Allow empty string
 
-            if (!content.trim() && !hasMedia) {
+            const aiImage = formData.get("aiImage") as string;
+
+            if (!content.trim() && !validatedData.media && !aiImage) {
                 return data({ error: "내용을 입력하거나 이미지를 첨부해주세요." }, { status: 400 });
             }
 
             let mediaData: any[] = [];
+
+            // 1. AI 모드에서 전송된 Base64 이미지 처리
+            if (aiImage && aiImage.startsWith("data:image")) {
+                try {
+                    // "data:image/jpeg;base64,..." 형식에서 실제 데이터만 추출
+                    const base64Data = aiImage.split(",")[1];
+                    const buffer = Buffer.from(base64Data, "base64");
+
+                    const uploadResult = await uploadToCloudinary(buffer, `ai-log-${Date.now()}`);
+
+                    mediaData.push({
+                        url: uploadResult.url,
+                        type: 'IMAGE',
+                        publicId: uploadResult.publicId,
+                        order: 0
+                    });
+                } catch (e) {
+                    console.error("AI Image Upload Error:", e);
+                }
+            }
+
+            // 2. 일반 업로드 미디어 처리
             if (validatedData.media) {
                 try {
                     const parsedMedia = JSON.parse(validatedData.media);

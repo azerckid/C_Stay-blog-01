@@ -17,6 +17,7 @@ export default [
     route("api/upload", "routes/api.upload.ts"),
     route("api/users", "routes/api.users.ts"),
     route("api/tags", "routes/api.tags.ts"),
+    route("api/ai-travel-log", "routes/api.ai-travel-log.ts"),
     route("auth/google/callback", "routes/api.auth.ts", { id: "google-callback" }),
     route("auth/kakao/callback", "routes/api.auth.ts", { id: "kakao-callback" }),
     route("login", "routes/login.tsx"),
