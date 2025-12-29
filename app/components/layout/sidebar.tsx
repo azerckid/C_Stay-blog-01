@@ -67,21 +67,27 @@ export function Sidebar() {
 
                 {/* Navigation Items */}
                 <nav className="flex flex-col gap-1">
-                    {NAV_ITEMS.map((item) => (
-                        <NavLink
-                            key={item.href}
-                            to={item.href}
-                            className={({ isActive }) =>
-                                cn(
-                                    "flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit xl:w-full",
-                                    isActive ? "font-bold text-primary" : "font-normal"
-                                )
-                            }
-                        >
-                            <HugeiconsIcon icon={item.icon} strokeWidth={2} className="h-7 w-7" />
-                            <span className="text-xl hidden xl:block">{item.label}</span>
-                        </NavLink>
-                    ))}
+                    {NAV_ITEMS.map((item) => {
+                        const href = item.label === "프로필" && session?.user?.id
+                            ? `/user/${session.user.id}`
+                            : item.href;
+
+                        return (
+                            <NavLink
+                                key={item.href}
+                                to={href}
+                                className={({ isActive }) =>
+                                    cn(
+                                        "flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit xl:w-full",
+                                        isActive ? "font-bold text-primary" : "font-normal"
+                                    )
+                                }
+                            >
+                                <HugeiconsIcon icon={item.icon} strokeWidth={2} className="h-7 w-7" />
+                                <span className="text-xl hidden xl:block">{item.label}</span>
+                            </NavLink>
+                        );
+                    })}
 
                     {/* More Menu */}
                     <button className="flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit xl:w-full text-left">
@@ -119,12 +125,19 @@ export function Sidebar() {
                         <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-5 w-5 ml-auto hidden xl:block text-muted-foreground pointer-events-none" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-64 mb-2 p-2">
+                        <DropdownMenuItem className="p-0 cursor-pointer rounded-lg font-medium">
+                            <NavLink to={`/user/${session.user.id}`} className="flex items-center w-full p-3 h-full">
+                                <HugeiconsIcon icon={UserIcon} className="mr-2 h-5 w-5 block" />
+                                <span className="truncate block">프로필 보기</span>
+                            </NavLink>
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                             variant="destructive"
-                            className="p-3 cursor-pointer rounded-lg font-bold"
+                            className="p-3 cursor-pointer rounded-lg font-medium"
                             onSelect={handleLogout}
                             onClick={handleLogout}
                         >
+                            <HugeiconsIcon icon={NotificationIcon} className="mr-2 h-5 w-5 opacity-0" /> {/* Spacer or Icon */}
                             <span className="truncate">@{session.user.email?.split("@")[0]} 계정에서 로그아웃</span>
                         </DropdownMenuItem>
                     </DropdownMenuContent>

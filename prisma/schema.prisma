@@ -21,6 +21,7 @@ model User {
   emailVerified Boolean  @default(false)
   avatarUrl     String?
   bio           String?
+  coverImage    String?
   status        String   @default("OFFLINE")
 
   // 관계 설정

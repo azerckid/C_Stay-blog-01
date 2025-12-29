@@ -15,6 +15,7 @@ export default [
     route("api/retweets", "routes/api.retweets.ts"),
     route("api/follows", "routes/api.follows.ts"),
     route("api/upload", "routes/api.upload.ts"),
+    route("api/users", "routes/api.users.ts"),
     route("api/tags", "routes/api.tags.ts"),
     route("auth/google/callback", "routes/api.auth.ts", { id: "google-callback" }),
     route("auth/kakao/callback", "routes/api.auth.ts", { id: "kakao-callback" }),
