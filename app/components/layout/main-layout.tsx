@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -5,9 +6,17 @@ import { Search01Icon as SearchIcon } from "@hugeicons/core-free-icons";
 
 interface MainLayoutProps {
     children: React.ReactNode;
+    popularTags?: {
+        id: string;
+        name: string;
+        slug: string;
+        _count: {
+            tweetTags: number;
+        };
+    }[];
 }
 
-export function MainLayout({ children }: MainLayoutProps) {
+export function MainLayout({ children, popularTags }: MainLayoutProps) {
     return (
         <div className="min-h-screen bg-background text-foreground flex justify-center">
             <div className="flex w-full max-w-[1300px]">
@@ -48,22 +57,39 @@ export function MainLayout({ children }: MainLayoutProps) {
                         </button>
                     </div>
 
-                    {/* Trending (Mockup) */}
-                    <div className="bg-secondary rounded-2xl overflow-hidden">
-                        <h2 className="text-xl font-black p-4">나를 위한 트렌드</h2>
-                        <div className="flex flex-col">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <button key={i} className="px-4 py-3 hover:bg-accent/50 text-left transition-colors flex flex-col outline-none">
-                                    <span className="text-xs text-muted-foreground">대한민국에서 트렌드 중</span>
-                                    <span className="font-bold">#트렌드_{i}</span>
-                                    <span className="text-xs text-muted-foreground">{i * 1.2}K 게시물</span>
-                                </button>
-                            ))}
-                            <button className="p-4 text-primary hover:bg-accent/50 text-left transition-colors text-sm font-medium">
-                                더 보기
-                            </button>
+                    {/* Trending Tags (Real Data) */}
+                    {popularTags && popularTags.length > 0 ? (
+                        <div className="bg-secondary rounded-2xl overflow-hidden">
+                            <h2 className="text-xl font-black p-4">인기 여행 태그</h2>
+                            <div className="flex flex-col">
+                                {popularTags.map((tag) => (
+                                    <Link
+                                        key={tag.id}
+                                        to={`/tags/${tag.slug}`}
+                                        className="px-4 py-3 hover:bg-accent/50 text-left transition-colors flex flex-col outline-none group"
+                                    >
+                                        <span className="text-xs text-muted-foreground mb-0.5">실시간 인기</span>
+                                        <span className="font-bold group-hover:underline">#{tag.name}</span>
+                                        <span className="text-xs text-muted-foreground mt-0.5">{tag._count.tweetTags}개 게시물</span>
+                                    </Link>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        /* Fallback Mockup if no tags */
+                        <div className="bg-secondary rounded-2xl overflow-hidden">
+                            <h2 className="text-xl font-black p-4">나를 위한 트렌드</h2>
+                            <div className="flex flex-col">
+                                {[1, 2, 3, 4, 5].map((i) => (
+                                    <button key={i} className="px-4 py-3 hover:bg-accent/50 text-left transition-colors flex flex-col outline-none">
+                                        <span className="text-xs text-muted-foreground">대한민국에서 트렌드 중</span>
+                                        <span className="font-bold">#트렌드_{i}</span>
+                                        <span className="text-xs text-muted-foreground">{i * 1.2}K 게시물</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Who to follow (Mockup) */}
                     <div className="bg-secondary rounded-2xl overflow-hidden">

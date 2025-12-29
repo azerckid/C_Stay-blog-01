@@ -86,8 +86,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             address: t.address,
             city: t.city,
             country: t.country,
-            travelDate: t.travelDate ? new Date(t.travelDate).toLocaleDateString() : undefined,
         } : undefined,
+        travelDate: t.travelDate ? new Date(t.travelDate).toISOString() : null,
         media: t.media ? t.media.map((m: any) => ({
             id: m.id,
             url: m.url,
@@ -142,6 +142,7 @@ export default function TweetDetail() {
                 {tweet.location?.latitude && (
                     <div className="w-full h-64 border-y border-border">
                         <Map
+                            key={`${tweet.location.latitude}-${tweet.location.longitude}`}
                             defaultCenter={{ lat: tweet.location.latitude, lng: tweet.location.longitude }}
                             defaultZoom={15}
                             mapId="DEMO_MAP_ID"

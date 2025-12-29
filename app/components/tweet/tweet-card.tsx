@@ -11,8 +11,12 @@ import {
     Image01Icon,
     Cancel01Icon,
     Tag01Icon,
-    PlusSignIcon
+    PlusSignIcon,
+    Calendar03Icon,
+    Location01Icon
 } from "@hugeicons/core-free-icons";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 import { Badge } from "~/components/ui/badge";
 import { TagPickerDialog } from "./tag-picker-dialog";
 import { cn } from "~/lib/utils";
@@ -25,6 +29,9 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { LocationPickerDialog, type LocationData } from "~/components/maps/location-picker-dialog";
+import { Calendar } from "~/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import {
     Dialog,
     DialogContent,
@@ -76,11 +83,11 @@ interface TweetCardProps {
         name: string;
         slug: string;
     }[];
+    travelDate?: string | null;
 }
-import { Location01Icon } from "@hugeicons/core-free-icons";
 import { useNavigate } from "react-router";
 
-export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media, retweetedBy, location, tags }: TweetCardProps) {
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media, retweetedBy, location, tags, travelDate }: TweetCardProps) {
     const navigate = useNavigate();
     const { data: session } = useSession();
     // ... (기존 hook 및 state 유지)
@@ -98,6 +105,11 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const [deletedMediaIds, setDeletedMediaIds] = useState<string[]>([]);
     const [editTags, setEditTags] = useState<string[]>([]);
     const [editTagPickerOpen, setEditTagPickerOpen] = useState(false);
+
+    // Location & Date Editing State
+    const [editLocation, setEditLocation] = useState<LocationData | null>(null);
+    const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+    const [editDate, setEditDate] = useState<Date | undefined>(undefined);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 낙관적 UI를 위한 로컬 상태
@@ -115,13 +127,30 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             fetcher.submit({ tweetId: id }, { method: "DELETE", action: "/api/tweets" });
         }
     };
-    const handleEdit = () => {
+    const handleEdit = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsEditing(true);
         setEditContent(content);
         setExistingMedia(media || []);
         setNewAttachments([]);
         setDeletedMediaIds([]);
-        setEditTags(tags ? tags.map(t => t.name) : []);
-        setIsEditing(true);
+        setEditTags(tags?.map(t => t.name) || []);
+        // Initialize location: we might lack full address details from standard props, so handle carefully or fetch if needed.
+        // For now, map available prop fields.
+        if (location) {
+            setEditLocation({
+                name: location.name,
+                latitude: location.latitude!,
+                longitude: location.longitude!,
+                address: "", // Missing in prop
+                city: "", // Missing in prop
+                country: "", // Missing in prop
+                placeId: "existing"
+            });
+        } else {
+            setEditLocation(null);
+        }
+        setEditDate(travelDate ? new Date(travelDate) : undefined);
     };
     const handleUpdate = () => { /* ... */
         if (!id) return;
@@ -137,6 +166,12 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         }
         if (newAttachments.length > 0) {
             payload.newMedia = JSON.stringify(newAttachments);
+        }
+        if (editLocation) {
+            payload.location = JSON.stringify(editLocation);
+        }
+        if (editDate) {
+            payload.travelDate = editDate.toISOString();
         }
 
         // Always send tags to ensure they are synced (empty array clears tags)
@@ -356,12 +391,19 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                     </p>
 
                     {/* Location Pill */}
-                    {(location || (tags && tags.length > 0)) && (
+                    {/* Metadata: Location, Date, Tags */}
+                    {(location || travelDate || (tags && tags.length > 0)) && (
                         <div className="flex flex-wrap gap-3 mt-2 items-center">
                             {location && (
                                 <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium w-fit hover:underline cursor-pointer hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); /* TODO: Show map */ }}>
                                     <HugeiconsIcon icon={Location01Icon} className="h-4 w-4" />
                                     <span>{location.name}</span>
+                                </div>
+                            )}
+                            {travelDate && (
+                                <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium w-fit">
+                                    <HugeiconsIcon icon={Calendar03Icon} className="h-4 w-4" />
+                                    <span>{format(new Date(travelDate), "yyyy. MM. dd.", { locale: ko })}</span>
                                 </div>
                             )}
                             {tags && tags.map(tag => (
@@ -603,7 +645,63 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                                 >
                                     <HugeiconsIcon icon={Image01Icon} strokeWidth={2} className="h-5 w-5" />
                                 </button>
+
+                                {/* Location Picker Trigger */}
+                                <button
+                                    type="button"
+                                    onClick={() => setLocationPickerOpen(true)}
+                                    className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:inline-block", editLocation && "text-primary")}
+                                >
+                                    <HugeiconsIcon icon={Location01Icon} strokeWidth={2} className="h-5 w-5" />
+                                </button>
+
+                                {/* Date Picker Trigger */}
+                                <Popover>
+                                    <PopoverTrigger
+                                        className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:inline-block", editDate && "text-primary")}
+                                    >
+                                        <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="h-5 w-5" />
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                            mode="single"
+                                            selected={editDate}
+                                            onSelect={setEditDate}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
                             </div>
+
+                            {/* Previews for Edit Mode */}
+                            {(editLocation || editDate) && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {editLocation && (
+                                        <Badge variant="outline" className="gap-1 pl-2">
+                                            <HugeiconsIcon icon={Location01Icon} className="h-3 w-3" />
+                                            {editLocation.name}
+                                            <button onClick={() => setEditLocation(null)} className="ml-1 hover:text-destructive">
+                                                <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                    {editDate && (
+                                        <Badge variant="outline" className="gap-1 pl-2">
+                                            <HugeiconsIcon icon={Calendar03Icon} className="h-3 w-3" />
+                                            {format(editDate, "yyyy. MM. dd.", { locale: ko })}
+                                            <button onClick={() => setEditDate(undefined)} className="ml-1 hover:text-destructive">
+                                                <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
+                                            </button>
+                                        </Badge>
+                                    )}
+                                </div>
+                            )}
+
+                            <LocationPickerDialog
+                                open={locationPickerOpen}
+                                onOpenChange={setLocationPickerOpen}
+                                onLocationSelect={setEditLocation}
+                            />
                         </div>
                         <DialogFooter>
                             <DialogClose>

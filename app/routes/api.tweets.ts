@@ -91,7 +91,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 id: t.travelTag.id,
                 name: t.travelTag.name,
                 slug: t.travelTag.slug
-            }))
+            })),
+            travelDate: tweet.travelDate ? new Date(tweet.travelDate).toISOString() : null
         }));
 
         return data({ tweets: formattedTweets });
@@ -382,11 +383,38 @@ export async function action({ request }: ActionFunctionArgs) {
                 }
             }
 
+            // 4. 위치 및 날짜 업데이트 처리
+            const locationStr = formData.get("location") as string;
+            let locationUpdateData: any = {};
+            // 명시적으로 null이나 빈 문자열이 전송된 경우 삭제 처리 필요하다면 로직 추가
+            // 현재 로직은 전송된 경우만 업데이트 (Partial Update)
+
+            if (locationStr) {
+                try {
+                    const parsed = JSON.parse(locationStr);
+                    locationUpdateData = {
+                        locationName: parsed.name,
+                        latitude: parsed.latitude,
+                        longitude: parsed.longitude,
+                        address: parsed.address,
+                        country: parsed.country,
+                        city: parsed.city
+                    };
+                } catch (e) {
+                    console.error("Location Parse Error", e);
+                }
+            }
+
+            const travelDateStr = formData.get("travelDate") as string;
+            // travelDateStr가 있으면 날짜 업데이트
+
             const updatedTweet = await prisma.tweet.update({
                 where: { id: tweetId },
                 data: {
                     content,
-                    tags: tagsUpdateData
+                    tags: tagsUpdateData,
+                    ...locationUpdateData,
+                    travelDate: travelDateStr ? new Date(travelDateStr) : undefined
                 },
                 include: { user: true, media: true, tags: { include: { travelTag: true } } }
             });

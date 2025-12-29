@@ -1,4 +1,8 @@
 import { HugeiconsIcon } from "@hugeicons/react";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { Calendar } from "~/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { Image01Icon, AiBrain01Icon, Location01Icon, Calendar03Icon, Cancel01Icon, Tag01Icon } from "@hugeicons/core-free-icons";
 import { useSession } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
@@ -30,6 +34,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
     // Tags State
     const [tags, setTags] = useState<string[]>([]);
     const [tagPickerOpen, setTagPickerOpen] = useState(false);
+    const [date, setDate] = useState<Date | undefined>(undefined);
 
     const fetcher = useFetcher(); // Tweet submission
     const uploadFetcher = useFetcher(); // File upload
@@ -46,6 +51,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                 setAttachments([]); // Clear attachments
                 setLocation(null); // Clear location
                 setTags([]); // Clear tags
+                setDate(undefined);
                 revalidator.revalidate();
             } else if (result.error) {
                 toast.error(result.error);
@@ -84,6 +90,9 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
         }
         if (tags.length > 0) {
             formData.append("tags", JSON.stringify(tags));
+        }
+        if (date) {
+            formData.append("travelDate", date.toISOString());
         }
 
         fetcher.submit(formData, {
@@ -176,6 +185,22 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                     </div>
                 )}
 
+                {/* Date Preview */}
+                {date && (
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-full flex items-center gap-2 w-fit">
+                            <HugeiconsIcon icon={Calendar03Icon} className="w-4 h-4" />
+                            <span className="text-sm font-bold">{format(date, "yyyy년 MM월 dd일", { locale: ko })}</span>
+                            <button
+                                onClick={() => setDate(undefined)}
+                                className="hover:bg-primary/20 rounded-full p-0.5"
+                            >
+                                <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Attachments Preview */}
                 {attachments.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto py-2">
@@ -249,14 +274,23 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                         >
                             <HugeiconsIcon icon={Tag01Icon} strokeWidth={2} className="h-5 w-5" />
                         </button>
-                        <button
-                            type="button"
-                            title="일정"
-                            disabled={isSubmitting}
-                            className="p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50"
-                        >
-                            <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="h-5 w-5" />
-                        </button>
+                        <Popover>
+                            <PopoverTrigger
+                                title="일정"
+                                disabled={isSubmitting}
+                                className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50", date && "text-primary")}
+                            >
+                                <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="h-5 w-5" />
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={date}
+                                    onSelect={setDate}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
 
                     <button
