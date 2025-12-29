@@ -257,7 +257,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                 toast.error(result.error);
             }
         }
-    }, [fetcher.state, fetcher.data, revalidator]);
+    }, [fetcher.state, fetcher.data]);
 
     const handleClick = () => { /* ... */
         if (id) {
@@ -370,8 +370,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                                     className="text-primary text-sm hover:underline cursor-pointer font-medium"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        // TODO: Navigate to tag search
-                                        // navigate(`/search?q=${encodeURIComponent('#' + tag.name)}`);
+                                        navigate(`/tags/${tag.slug}`);
                                     }}
                                 >
                                     #{tag.name}

@@ -65,6 +65,7 @@ export function TagPickerDialog({ open, onOpenChange, onTagsSelected, initialTag
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.nativeEvent.isComposing) return;
         if ((e.key === 'Enter' || e.key === ' ') && query.trim()) {
             e.preventDefault();
             handleAddTag(query.trim());
