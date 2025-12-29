@@ -11,6 +11,8 @@ import { Search01Icon, ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { DateTime } from "luxon";
 import { useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "~/components/ui/loading-spinner";
+import { generateEmbedding, vectorToBuffer } from "~/lib/gemini.server";
+
 
 
 
@@ -149,7 +151,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 latitude: tweet.latitude || undefined,
                 longitude: tweet.longitude || undefined,
             } : undefined,
-
             travelDate: tweet.travelDate?.toISOString(),
             tags: tweet.tags.map(t => ({
                 id: t.travelTag.id,
@@ -157,6 +158,86 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 slug: t.travelTag.slug
             }))
         }));
+
+        // AI 기반 의미 검색 추가 (첫 페이지 로딩 시 혹은 명시적 요청 시)
+        if (!cursor && query.length > 1) {
+            try {
+                const queryVector = await generateEmbedding(query);
+                const vectorBuffer = vectorToBuffer(queryVector);
+
+                // Turso 벡터 검색 쿼리 실행 (단거리 순으로 20개)
+                const semanticMatches: any[] = await prisma.$queryRaw`
+                    SELECT tweetId, vector_distance_cos(vector, ${vectorBuffer}) as distance 
+                    FROM TweetEmbedding 
+                    WHERE vector_distance_cos(vector, ${vectorBuffer}) < 0.2
+                    ORDER BY distance ASC 
+                    LIMIT 20
+                `;
+
+                if (semanticMatches.length > 0) {
+                    const matchIds = semanticMatches.map(m => m.tweetId);
+                    const existingIds = new Set(results.map(r => r.id));
+                    const newIds = matchIds.filter(id => !existingIds.has(id));
+
+                    if (newIds.length > 0) {
+                        const semanticTweets = await prisma.tweet.findMany({
+                            where: { id: { in: newIds }, deletedAt: null },
+                            include: {
+                                user: true,
+                                media: true,
+                                _count: { select: { likes: true, replies: true, retweets: true } },
+                                likes: userId ? { where: { userId }, select: { userId: true } } : false,
+                                retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+                                tags: { include: { travelTag: true } }
+                            }
+                        });
+
+                        const formattedSemantic = semanticTweets.map(tweet => ({
+                            type: 'tweet',
+                            id: tweet.id,
+                            content: tweet.content,
+                            createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+                            fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+                            user: {
+                                id: tweet.user.id,
+                                name: tweet.user.name || "알 수 없음",
+                                username: tweet.user.email.split("@")[0],
+                                image: tweet.user.image || tweet.user.avatarUrl,
+                            },
+                            media: tweet.media.map(m => ({
+                                id: m.id,
+                                url: m.url,
+                                type: m.type,
+                                altText: m.altText
+                            })),
+                            stats: {
+                                likes: tweet._count.likes,
+                                replies: tweet._count.replies,
+                                retweets: tweet._count.retweets,
+                                views: "0",
+                            },
+                            isLiked: (tweet.likes?.length ?? 0) > 0,
+                            isRetweeted: (tweet.retweets?.length ?? 0) > 0,
+                            location: tweet.locationName ? {
+                                name: tweet.locationName,
+                                latitude: tweet.latitude || undefined,
+                                longitude: tweet.longitude || undefined,
+                            } : undefined,
+                            travelDate: tweet.travelDate?.toISOString(),
+                            tags: tweet.tags.map(t => ({
+                                id: t.travelTag.id,
+                                name: t.travelTag.name,
+                                slug: t.travelTag.slug
+                            }))
+                        }));
+
+                        results = [...formattedSemantic, ...results];
+                    }
+                }
+            } catch (e) {
+                console.error("Semantic Search Error:", e);
+            }
+        }
 
         nextCursor = results.length > limit ? tweets[limit - 1].createdAt.toISOString() : null;
         if (results.length > limit) results.pop();

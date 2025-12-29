@@ -117,11 +117,12 @@ model Tweet {
   originalTweet Tweet?  @relation("Retweets", fields: [originalTweetId], references: [id], onDelete: SetNull)
   retweetedIn   Tweet[] @relation("Retweets")
 
-  media     Media[]
-  likes     Like[]
-  retweets  Retweet[]
-  bookmarks Bookmark[]
-  tags      TweetTravelTag[]
+  media          Media[]
+  likes          Like[]
+  retweets       Retweet[]
+  bookmarks      Bookmark[]
+  tags           TweetTravelTag[]
+  tweetEmbedding TweetEmbedding?
 
   @@index([userId])
   @@index([parentId])
@@ -237,4 +238,15 @@ model TweetTravelTag {
   @@index([tweetId])
   @@index([travelTagId])
   @@map("TweetTravelTag")
+}
+
+model TweetEmbedding {
+  id        String   @id @default(cuid())
+  tweetId   String   @unique
+  vector    Bytes // Stores FLOAT32_BLOB
+  createdAt DateTime @default(now())
+
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@map("TweetEmbedding")
 }

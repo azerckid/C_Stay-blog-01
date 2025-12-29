@@ -4,6 +4,8 @@ import { DateTime } from "luxon";
 import { getSession } from "~/lib/auth-utils.server";
 import { deleteFromCloudinary } from "~/lib/cloudinary.server";
 import { z } from "zod";
+import { generateEmbedding, vectorToBuffer } from "~/lib/gemini.server";
+
 
 const createTweetSchema = z.object({
     content: z.string().min(0, "내용을 입력해주세요.").max(280, "280자 이내로 입력해주세요.")
@@ -209,7 +211,24 @@ export async function action({ request }: ActionFunctionArgs) {
                 }
             });
 
+            // AI 임베딩 생성 (Background 또는 Sync 지만 여기서는 안전하게 처리)
+            try {
+                const embeddingText = `${tweet.content} ${tagConnectData.map((t: any) => t.travelTag.connectOrCreate.create.name).join(" ")}`;
+                const vector = await generateEmbedding(embeddingText);
+                await prisma.tweetEmbedding.create({
+                    data: {
+                        tweetId: tweet.id,
+                        vector: vectorToBuffer(vector) as any
+                    }
+                });
+
+            } catch (e) {
+                console.error("Embedding Generation Error:", e);
+                // 임베딩 실패가 트윗 작성 실패로 이어지지는 않도록 함
+            }
+
             return data({ success: true, tweet }, { status: 201 });
+
         } catch (error) {
             if (error instanceof z.ZodError) {
                 return data({ error: error.issues[0].message }, { status: 400 });
@@ -419,7 +438,24 @@ export async function action({ request }: ActionFunctionArgs) {
                 include: { user: true, media: true, tags: { include: { travelTag: true } } }
             });
 
+            // AI 임베딩 업데이트
+            try {
+                const updatedTags = updatedTweet.tags.map(t => t.travelTag.name).join(" ");
+                const embeddingText = `${updatedTweet.content} ${updatedTags}`;
+                const vector = await generateEmbedding(embeddingText);
+
+                await prisma.tweetEmbedding.upsert({
+                    where: { tweetId: tweetId },
+                    update: { vector: vectorToBuffer(vector) as any },
+                    create: { tweetId: tweetId, vector: vectorToBuffer(vector) as any }
+                });
+
+            } catch (e) {
+                console.error("Embedding Update Error:", e);
+            }
+
             return data({ success: true, tweet: updatedTweet, message: "트윗이 수정되었습니다." }, { status: 200 });
+
 
         } catch (error) {
             if (error instanceof z.ZodError) {

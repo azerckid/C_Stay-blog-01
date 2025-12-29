@@ -265,6 +265,21 @@
    CREATE INDEX "TweetTravelTag_travelTagId_idx" ON "TweetTravelTag"("travelTagId");
    CREATE INDEX "TweetTravelTag_tweetId_travelTagId_idx" ON "TweetTravelTag"("tweetId", "travelTagId");
    ```
+9. **`TweetEmbedding`** - AI 검색을 위한 트윗 임베딩 정보
+   ```sql
+   CREATE TABLE "TweetEmbedding" (
+       "id" TEXT NOT NULL PRIMARY KEY,
+       "tweetId" TEXT NOT NULL UNIQUE,
+       "vector" BLOB NOT NULL,  -- float32 array as BLOB
+       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       "updatedAt" DATETIME NOT NULL,
+       FOREIGN KEY ("tweetId") REFERENCES "Tweet" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+   );
+   
+   -- 인덱스
+   CREATE INDEX "TweetEmbedding_tweetId_idx" ON "TweetEmbedding"("tweetId");
+   ```
+   *참고: Gemini API(`text-embedding-004`)를 통해 생성된 768차원 벡터를 저장합니다.*
 
 *참고: `Reply` 테이블은 `Tweet` 테이블의 자기 참조(`parentId`)로 통합하여 관리합니다.*
 
