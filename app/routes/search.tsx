@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
-import { Form, useLoaderData, useSearchParams, Link, useNavigate, useSubmit } from "react-router";
+import { Form, useLoaderData, useSearchParams, Link, useNavigate, useSubmit, useFetcher } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
 import { UserCard } from "~/components/user/user-card";
@@ -9,6 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { DateTime } from "luxon";
+import { useEffect, useRef, useState } from "react";
+import { LoadingSpinner } from "~/components/ui/loading-spinner";
+
 
 
 export const meta: MetaFunction = ({ data }: any) => {
@@ -21,10 +24,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const url = new URL(request.url);
     const query = url.searchParams.get("q");
     let type = url.searchParams.get("type");
+    const cursor = url.searchParams.get("cursor"); // Tweet ID or Date
+    const limit = 20;
 
     if (!query) {
-        return { session, query, type: type || "tweets", results: [] };
+        return { session, query, type: type || "tweets", results: [], nextCursor: null };
     }
+
 
     // 스마트 탭 감지: 명시적인 type이 없을 경우
     if (!type) {
@@ -42,6 +48,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 
     let results: any[] = [];
+    let nextCursor: string | null = null;
+
 
     if (type === "users") {
         const users = await prisma.user.findMany({
@@ -83,6 +91,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         const tweets = await prisma.tweet.findMany({
             where: {
                 deletedAt: null,
+                ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
                 OR: [
                     { content: { contains: query } },
                     {
@@ -96,8 +105,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
                     }
                 ]
             },
-            take: 20,
+            take: limit + 1,
             orderBy: { createdAt: "desc" },
+
             include: {
                 user: true,
                 media: true,
@@ -148,24 +158,68 @@ export async function loader({ request }: LoaderFunctionArgs) {
             }))
         }));
 
-
+        nextCursor = results.length > limit ? tweets[limit - 1].createdAt.toISOString() : null;
+        if (results.length > limit) results.pop();
     }
 
-    return { session, query, type, results };
+    return { session, query, type, results, nextCursor };
 }
 
 export default function SearchPage() {
-    const { session, query, type, results } = useLoaderData<typeof loader>();
+    const { session, query, type, results: initialResults, nextCursor: initialNextCursor } = useLoaderData<typeof loader>();
     const navigate = useNavigate();
-    const submit = useSubmit();
+    const fetcher = useFetcher<typeof loader>();
     const [searchParams, setSearchParams] = useSearchParams();
+
+    const [results, setResults] = useState(initialResults);
+    const [nextCursor, setNextCursor] = useState(initialNextCursor);
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+    const isLoadingMore = fetcher.state !== "idle";
 
     // Handle Tab Change
     const handleTabChange = (newType: string) => {
         const newParams = new URLSearchParams(searchParams);
         newParams.set("type", newType);
+        // Reset results when manually changing tabs (the useEffect below will capture searchParams change)
         setSearchParams(newParams);
     };
+
+    // 무한 스크롤: Intersection Observer로 하단 감지 (트윗 탭에서만 활성화)
+    useEffect(() => {
+        if (!loadMoreRef.current || !nextCursor || isLoadingMore || type !== 'tweets') return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && nextCursor) {
+                    fetcher.load(`/search?q=${encodeURIComponent(query || "")}&type=${type}&cursor=${encodeURIComponent(nextCursor)}`);
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        observer.observe(loadMoreRef.current);
+        return () => observer.disconnect();
+    }, [nextCursor, isLoadingMore, fetcher, type, query]);
+
+    // 추가 트윗 로드 완료 시 상태 업데이트
+    useEffect(() => {
+        if (fetcher.data && fetcher.state === "idle") {
+            const newResults = fetcher.data.results;
+            if (newResults && newResults.length > 0) {
+                setResults((prev) => [...prev, ...newResults]);
+                setNextCursor(fetcher.data.nextCursor);
+            } else {
+                setNextCursor(null);
+            }
+        }
+    }, [fetcher.data, fetcher.state]);
+
+    // 초기 데이터 변경(새 검색어) 시 상태 초기화
+    useEffect(() => {
+        setResults(initialResults);
+        setNextCursor(initialNextCursor);
+    }, [initialResults, initialNextCursor]);
+
 
     return (
         <div className="flex flex-col min-h-screen">
@@ -249,7 +303,15 @@ export default function SearchPage() {
                                 isFollowing={user.isFollowing}
                             />
                         ))}
+
+                        {/* 무한 스크롤 트리거 (트윗 검색에서만 작동) */}
+                        {type === 'tweets' && nextCursor && (
+                            <div ref={loadMoreRef} className="p-4 flex justify-center">
+                                {isLoadingMore && <LoadingSpinner size="md" />}
+                            </div>
+                        )}
                     </div>
+
                 )}
             </main>
         </div>
