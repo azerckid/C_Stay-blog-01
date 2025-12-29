@@ -67,11 +67,16 @@ interface TweetCardProps {
         latitude?: number;
         longitude?: number;
     };
+    tags?: {
+        id: string;
+        name: string;
+        slug: string;
+    }[];
 }
 import { Location01Icon } from "@hugeicons/core-free-icons";
 import { useNavigate } from "react-router";
 
-export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media, retweetedBy, location }: TweetCardProps) {
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media, retweetedBy, location, tags }: TweetCardProps) {
     const navigate = useNavigate();
     const { data: session } = useSession();
     // ... (기존 hook 및 state 유지)
@@ -341,10 +346,27 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                     </p>
 
                     {/* Location Pill */}
-                    {location && (
-                        <div className="flex items-center gap-1 mt-2 text-primary text-sm font-medium w-fit hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); /* TODO: Show map */ }}>
-                            <HugeiconsIcon icon={Location01Icon} className="h-4 w-4" />
-                            <span>{location.name}</span>
+                    {(location || (tags && tags.length > 0)) && (
+                        <div className="flex flex-wrap gap-3 mt-2 items-center">
+                            {location && (
+                                <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium w-fit hover:underline cursor-pointer hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); /* TODO: Show map */ }}>
+                                    <HugeiconsIcon icon={Location01Icon} className="h-4 w-4" />
+                                    <span>{location.name}</span>
+                                </div>
+                            )}
+                            {tags && tags.map(tag => (
+                                <span
+                                    key={tag.id}
+                                    className="text-primary text-sm hover:underline cursor-pointer font-medium"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        // TODO: Navigate to tag search
+                                        // navigate(`/search?q=${encodeURIComponent('#' + tag.name)}`);
+                                    }}
+                                >
+                                    #{tag.name}
+                                </span>
+                            ))}
                         </div>
                     )}
 

@@ -12,6 +12,7 @@ const createTweetSchema = z.object({
     travelDate: z.string().optional().nullable(),
     parentId: z.string().optional().nullable(),
     media: z.string().optional().nullable(), // JSON string of attachments
+    tags: z.string().optional().nullable(), // JSON string of tags
 });
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -21,14 +22,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
         const tweets = await prisma.tweet.findMany({
             where: {
-                deletedAt: null, // Soft Delete
-                parentId: null, // Only fetch root tweets (exclude replies)
+                deletedAt: null,
+                parentId: null,
             },
             take: 20,
             orderBy: { createdAt: "desc" },
             include: {
                 user: true,
-                media: true, // Include Media
+                media: true,
                 _count: {
                     select: {
                         likes: true,
@@ -36,7 +37,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
                         retweets: true,
                     }
                 },
-                // 현재 로그인한 사용자의 좋아요 및 리트윗 여부 확인
                 likes: userId ? {
                     where: { userId },
                     select: { userId: true }
@@ -45,6 +45,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
                     where: { userId },
                     select: { userId: true }
                 } : false,
+                tags: {
+                    include: {
+                        travelTag: true
+                    }
+                }
             }
         });
 
@@ -72,7 +77,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 views: "0",
             },
             isLiked: tweet.likes && tweet.likes.length > 0,
-            isRetweeted: tweet.retweets && tweet.retweets.length > 0, // 리트윗 여부 추가
+            isRetweeted: tweet.retweets && tweet.retweets.length > 0,
             location: tweet.locationName ? {
                 name: tweet.locationName,
                 latitude: tweet.latitude,
@@ -81,7 +86,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 city: tweet.city,
                 country: tweet.country,
                 travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
-            } : undefined
+            } : undefined,
+            tags: tweet.tags.map(t => ({
+                id: t.travelTag.id,
+                name: t.travelTag.name,
+                slug: t.travelTag.slug
+            }))
         }));
 
         return data({ tweets: formattedTweets });
@@ -107,6 +117,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 travelDate: formData.get("travelDate") || undefined,
                 parentId: formData.get("parentId") || undefined,
                 media: formData.get("media") || undefined,
+                tags: formData.get("tags") || undefined,
             };
 
             const validatedData = createTweetSchema.parse(payload);
@@ -126,8 +137,8 @@ export async function action({ request }: ActionFunctionArgs) {
                     if (Array.isArray(parsedMedia)) {
                         mediaData = parsedMedia.map((m: any, index: number) => ({
                             url: m.url,
-                            type: m.type === 'video' ? 'VIDEO' : 'IMAGE', // Ensure uppercase for DB enum/string convention
-                            thumbnailUrl: m.thumbnailUrl, // Optional
+                            type: m.type === 'video' ? 'VIDEO' : 'IMAGE',
+                            thumbnailUrl: m.thumbnailUrl,
                             publicId: m.publicId,
                             order: index
                         }));
@@ -154,6 +165,28 @@ export async function action({ request }: ActionFunctionArgs) {
                 }
             }
 
+            let tagConnectData: any[] = [];
+            if (validatedData.tags) {
+                try {
+                    const tagsList = JSON.parse(validatedData.tags);
+                    if (Array.isArray(tagsList)) {
+                        tagConnectData = tagsList.map((t: string) => {
+                            const slug = t.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                            return {
+                                travelTag: {
+                                    connectOrCreate: {
+                                        where: { name: t },
+                                        create: { name: t, slug: slug || t }
+                                    }
+                                }
+                            };
+                        });
+                    }
+                } catch (e) {
+                    console.error("Tags Parse Error", e);
+                }
+            }
+
             const tweet = await prisma.tweet.create({
                 data: {
                     content: content,
@@ -163,11 +196,15 @@ export async function action({ request }: ActionFunctionArgs) {
                     parentId: validatedData.parentId,
                     media: {
                         create: mediaData
+                    },
+                    tags: {
+                        create: tagConnectData
                     }
                 },
                 include: {
                     user: true,
-                    media: true
+                    media: true,
+                    tags: { include: { travelTag: true } }
                 }
             });
 

@@ -60,6 +60,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       _count: { select: { likes: true, replies: true, retweets: true } },
       likes: userId ? { where: { userId }, select: { userId: true } } : false,
       retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+      tags: { include: { travelTag: true } }
     }
   });
 
@@ -88,6 +89,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
           _count: { select: { likes: true, replies: true, retweets: true } },
           likes: userId ? { where: { userId }, select: { userId: true } } : false,
           retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+          tags: { include: { travelTag: true } }
         }
       }
     }
@@ -141,6 +143,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
           country: tweet.country,
           travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
         } : undefined,
+        tags: tweet.tags.map(t => ({
+          id: t.travelTag.id,
+          name: t.travelTag.name,
+          slug: t.travelTag.slug
+        })),
         retweetedBy: undefined
       };
     } else {
@@ -178,6 +185,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
           country: tweet.country,
           travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
         } : undefined,
+        tags: tweet.tags.map(t => ({
+          id: t.travelTag.id,
+          name: t.travelTag.name,
+          slug: t.travelTag.slug
+        })),
         retweetedBy: { // 리트윗한 사람 정보
           name: retweetData.user.name || "알 수 없음",
           username: retweetData.user.email.split("@")[0],

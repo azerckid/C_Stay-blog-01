@@ -32,6 +32,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             likes: userId ? { where: { userId }, select: { userId: true } } : false,
             retweets: userId ? { where: { userId }, select: { userId: true } } : false,
             media: true, // Include media for main tweet
+            tags: { include: { travelTag: true } }, // Include tags
             replies: {
                 where: { deletedAt: null },
                 orderBy: [
@@ -44,6 +45,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
                     _count: { select: { likes: true, replies: true, retweets: true } },
                     likes: userId ? { where: { userId }, select: { userId: true } } : false,
                     retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+                    tags: { include: { travelTag: true } },
                 }
             }
         }
@@ -91,6 +93,11 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             url: m.url,
             type: m.type,
             altText: m.altText
+        })) : [],
+        tags: t.tags ? t.tags.map((tt: any) => ({
+            id: tt.travelTag.id,
+            name: tt.travelTag.name,
+            slug: tt.travelTag.slug
         })) : []
     });
 

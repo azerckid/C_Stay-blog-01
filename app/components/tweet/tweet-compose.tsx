@@ -1,11 +1,13 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Image01Icon, AiBrain01Icon, Location01Icon, Calendar03Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Image01Icon, AiBrain01Icon, Location01Icon, Calendar03Icon, Cancel01Icon, Tag01Icon } from "@hugeicons/core-free-icons";
 import { useSession } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { useFetcher, useRevalidator } from "react-router";
 import { toast } from "sonner";
 import { LocationPickerDialog, type LocationData } from "~/components/maps/location-picker-dialog";
+import { TagPickerDialog } from "./tag-picker-dialog";
+import { Badge } from "~/components/ui/badge";
 
 interface TweetComposeProps {
     parentId?: string;
@@ -25,6 +27,10 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
     const [location, setLocation] = useState<LocationData | null>(null);
     const [locationPickerOpen, setLocationPickerOpen] = useState(false);
 
+    // Tags State
+    const [tags, setTags] = useState<string[]>([]);
+    const [tagPickerOpen, setTagPickerOpen] = useState(false);
+
     const fetcher = useFetcher(); // Tweet submission
     const uploadFetcher = useFetcher(); // File upload
     const revalidator = useRevalidator();
@@ -39,6 +45,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                 setContent("");
                 setAttachments([]); // Clear attachments
                 setLocation(null); // Clear location
+                setTags([]); // Clear tags
                 revalidator.revalidate();
             } else if (result.error) {
                 toast.error(result.error);
@@ -64,16 +71,26 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
     const handleSubmit = () => {
         if ((!content.trim() && attachments.length === 0) || isSubmitting) return;
 
-        // server-side action 호출
-        fetcher.submit(
-            {
-                content,
-                ...(parentId ? { parentId } : {}),
-                ...(attachments.length > 0 ? { media: JSON.stringify(attachments) } : {}),
-                ...(location ? { location: JSON.stringify(location) } : {})
-            },
-            { method: "POST", action: "/api/tweets" }
-        );
+        const formData = new FormData();
+        formData.append("content", content);
+        if (parentId) {
+            formData.append("parentId", parentId);
+        }
+        if (attachments.length > 0) {
+            formData.append("media", JSON.stringify(attachments));
+        }
+        if (location) {
+            formData.append("location", JSON.stringify(location));
+        }
+        if (tags.length > 0) {
+            formData.append("tags", JSON.stringify(tags));
+        }
+
+        fetcher.submit(formData, {
+            method: "POST",
+            action: "/api/tweets",
+            encType: "multipart/form-data",
+        });
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,7 +104,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
         }
 
         if (attachments.length >= 4) {
-            toast.error("이미지는 최대 4장까지 첨부할 수 있습니다.");
+            toast.error("이미지는 최대 4장까지 첨부할 수 없습니다.");
             return;
         }
 
@@ -139,6 +156,23 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                                 <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
                             </button>
                         </div>
+                    </div>
+                )}
+
+                {/* Tags Preview */}
+                {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {tags.map(tag => (
+                            <Badge key={tag} variant="secondary" className="text-xs pointer-events-none">
+                                #{tag}
+                                <button
+                                    onClick={() => setTags(prev => prev.filter(t => t !== tag))}
+                                    className="ml-1 hover:bg-secondary/50 rounded-full p-0.5"
+                                >
+                                    <HugeiconsIcon icon={Cancel01Icon} className="w-2.5 h-2.5" />
+                                </button>
+                            </Badge>
+                        ))}
                     </div>
                 )}
 
@@ -208,6 +242,15 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                         </button>
                         <button
                             type="button"
+                            title="태그"
+                            disabled={isSubmitting}
+                            onClick={() => setTagPickerOpen(true)}
+                            className="p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50"
+                        >
+                            <HugeiconsIcon icon={Tag01Icon} strokeWidth={2} className="h-5 w-5" />
+                        </button>
+                        <button
+                            type="button"
                             title="일정"
                             disabled={isSubmitting}
                             className="p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50"
@@ -219,10 +262,10 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        disabled={(!content.trim() && attachments.length === 0) || isSubmitting}
+                        disabled={(!content.trim() && attachments.length === 0 && tags.length === 0) || isSubmitting}
                         className={cn(
                             "text-white font-bold py-2 px-5 rounded-full transition-all",
-                            (content.trim() || attachments.length > 0) && !isSubmitting ? "bg-primary hover:bg-primary/90" : "bg-primary/50 cursor-not-allowed"
+                            (content.trim() || attachments.length > 0 || tags.length > 0) && !isSubmitting ? "bg-primary hover:bg-primary/90" : "bg-primary/50 cursor-not-allowed"
                         )}
                     >
                         {isUploading ? "업로드 중..." : isSubmitting ? "게시 중..." : "게시하기"}
@@ -233,7 +276,16 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
             <LocationPickerDialog
                 open={locationPickerOpen}
                 onOpenChange={setLocationPickerOpen}
-                onLocationSelect={setLocation}
+                onLocationSelect={(loc) => {
+                    setLocation(loc);
+                    setLocationPickerOpen(false);
+                }}
+            />
+            <TagPickerDialog
+                open={tagPickerOpen}
+                onOpenChange={setTagPickerOpen}
+                onTagsSelected={(selected) => setTags(selected)}
+                initialTags={tags}
             />
         </div>
     );
