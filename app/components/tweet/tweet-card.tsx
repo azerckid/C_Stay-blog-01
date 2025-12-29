@@ -9,8 +9,12 @@ import {
     Delete02Icon,
     PencilEdit02Icon,
     Image01Icon,
-    Cancel01Icon
+    Cancel01Icon,
+    Tag01Icon,
+    PlusSignIcon
 } from "@hugeicons/core-free-icons";
+import { Badge } from "~/components/ui/badge";
+import { TagPickerDialog } from "./tag-picker-dialog";
 import { cn } from "~/lib/utils";
 import { useSession } from "~/lib/auth-client";
 import { useFetcher, useRevalidator } from "react-router";
@@ -92,6 +96,8 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const [existingMedia, setExistingMedia] = useState(media || []);
     const [newAttachments, setNewAttachments] = useState<{ url: string; publicId: string; type: "image" | "video" }[]>([]);
     const [deletedMediaIds, setDeletedMediaIds] = useState<string[]>([]);
+    const [editTags, setEditTags] = useState<string[]>([]);
+    const [editTagPickerOpen, setEditTagPickerOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 낙관적 UI를 위한 로컬 상태
@@ -114,6 +120,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         setExistingMedia(media || []);
         setNewAttachments([]);
         setDeletedMediaIds([]);
+        setEditTags(tags ? tags.map(t => t.name) : []);
         setIsEditing(true);
     };
     const handleUpdate = () => { /* ... */
@@ -131,6 +138,9 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         if (newAttachments.length > 0) {
             payload.newMedia = JSON.stringify(newAttachments);
         }
+
+        // Always send tags to ensure they are synced (empty array clears tags)
+        payload.tags = JSON.stringify(editTags);
 
         fetcher.submit(
             payload,
@@ -503,6 +513,35 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                                 onChange={(e) => setEditContent(e.target.value)}
                                 className="min-h-[150px] text-lg resize-none border-none focus-visible:ring-0 p-0"
                                 placeholder="무슨 일이 일어나고 있나요?"
+                            />
+
+                            {/* Edit Tags */}
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                {editTags.map(tag => (
+                                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                                        #{tag}
+                                        <button onClick={() => setEditTags(prev => prev.filter(t => t !== tag))} className="ml-1 hover:text-destructive">
+                                            <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
+                                        </button>
+                                    </Badge>
+                                ))}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditTagPickerOpen(true)}
+                                    className="h-6 text-xs gap-1 rounded-full"
+                                >
+                                    <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" />
+                                    태그 추가
+                                </Button>
+                            </div>
+
+                            <TagPickerDialog
+                                open={editTagPickerOpen}
+                                onOpenChange={setEditTagPickerOpen}
+                                onTagsSelected={(newTags) => setEditTags(newTags)}
+                                initialTags={editTags}
                             />
 
                             {/* Edit Media Preview */}

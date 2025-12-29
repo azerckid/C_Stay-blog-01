@@ -65,9 +65,23 @@ export function TagPickerDialog({ open, onOpenChange, onTagsSelected, initialTag
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && query.trim()) {
+        if ((e.key === 'Enter' || e.key === ' ') && query.trim()) {
             e.preventDefault();
             handleAddTag(query.trim());
+        }
+    };
+
+    const handlePaste = (e: React.ClipboardEvent) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData("text");
+        if (text) {
+            const tags = text.split(/\s+/).filter(t => t.trim().length > 0);
+            const uniqueTags = tags.filter(t => !selectedTags.includes(t));
+            if (uniqueTags.length > 0) {
+                setSelectedTags(prev => [...prev, ...uniqueTags]);
+            }
+            setQuery("");
+            setSuggestions([]);
         }
     };
 
@@ -98,11 +112,12 @@ export function TagPickerDialog({ open, onOpenChange, onTagsSelected, initialTag
                     <div className="relative">
                         <HugeiconsIcon icon={Tag01Icon} className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="태그 검색 또는 생성 (Enter)"
                             className="pl-9 bg-background border-border text-foreground placeholder:text-muted-foreground"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={handleKeyDown}
+                            onPaste={handlePaste}
+                            placeholder="태그 입력 (Space 또는 Enter로 태그 생성)"
                         />
                     </div>
 

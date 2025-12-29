@@ -351,10 +351,44 @@ export async function action({ request }: ActionFunctionArgs) {
                 }
             }
 
+            // 3. 태그 업데이트 처리
+            const tagsStr = formData.get("tags") as string;
+            let tagsUpdateData = undefined;
+
+            if (tagsStr) {
+                try {
+                    const tagsList = JSON.parse(tagsStr);
+                    if (Array.isArray(tagsList)) {
+                        // 기존 태그 연결 모두 제거 후 새로 생성
+                        const createList = tagsList.map((t: string) => {
+                            const slug = t.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                            return {
+                                travelTag: {
+                                    connectOrCreate: {
+                                        where: { name: t },
+                                        create: { name: t, slug: slug || t }
+                                    }
+                                }
+                            };
+                        });
+
+                        tagsUpdateData = {
+                            deleteMany: {}, // 기존 TweetTravelTag 연결 삭제
+                            create: createList
+                        };
+                    }
+                } catch (e) {
+                    console.error("Tags Update Error", e);
+                }
+            }
+
             const updatedTweet = await prisma.tweet.update({
                 where: { id: tweetId },
-                data: { content },
-                include: { user: true, media: true }
+                data: {
+                    content,
+                    tags: tagsUpdateData
+                },
+                include: { user: true, media: true, tags: { include: { travelTag: true } } }
             });
 
             return data({ success: true, tweet: updatedTweet, message: "트윗이 수정되었습니다." }, { status: 200 });
