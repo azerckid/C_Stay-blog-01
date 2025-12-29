@@ -118,7 +118,8 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const [retweeted, setRetweeted] = useState(isRetweeted);
     const [retweetCount, setRetweetCount] = useState(stats?.retweets ?? 0);
 
-    const isOwner = session?.user?.id === user.id;
+    const isOwner = session?.user?.id === user?.id;
+
 
     // ... (기존 핸들러 유지)
     const handleDelete = () => { /* ... */

@@ -12,6 +12,8 @@ import { DateTime } from "luxon";
 import { useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "~/components/ui/loading-spinner";
 import { generateEmbedding, vectorToBuffer } from "~/lib/gemini.server";
+import { Button } from "~/components/ui/button";
+
 
 
 
@@ -89,27 +91,41 @@ export async function loader({ request }: LoaderFunctionArgs) {
             isCurrentUser: user.id === userId
         }));
     } else {
-        // Tweets Search
+        // 1. 키워드 검색: 태그 우선 매칭 로직 적용
+        // 검색어가 기존 태그와 정확히 일치하는지 먼저 확인
+        const exactTag = await prisma.travelTag.findUnique({
+            where: { name: query }
+        });
+
         const tweets = await prisma.tweet.findMany({
             where: {
                 deletedAt: null,
                 ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
-                OR: [
-                    { content: { contains: query } },
-                    {
-                        tags: {
-                            some: {
-                                travelTag: {
-                                    name: { contains: query }
+                ...(exactTag ? {
+                    // 정확한 태그가 있는 경우 태그 필터링을 우선 적용
+                    tags: {
+                        some: {
+                            travelTagId: exactTag.id
+                        }
+                    }
+                } : {
+                    // 그 외에는 일반적인 내용 및 태그 포함 검색 (Contains)
+                    OR: [
+                        { content: { contains: query } },
+                        {
+                            tags: {
+                                some: {
+                                    travelTag: {
+                                        name: { contains: query }
+                                    }
                                 }
                             }
                         }
-                    }
-                ]
+                    ]
+                })
             },
             take: limit + 1,
             orderBy: { createdAt: "desc" },
-
             include: {
                 user: true,
                 media: true,
@@ -119,6 +135,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 tags: { include: { travelTag: true } }
             }
         });
+
 
         results = tweets.map(tweet => ({
             type: 'tweet',
@@ -146,7 +163,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
             },
             isLiked: (tweet.likes?.length ?? 0) > 0,
             isRetweeted: (tweet.retweets?.length ?? 0) > 0,
+            rawDate: tweet.createdAt, // 정렬용 원본 날짜 유지
             location: tweet.locationName ? {
+
                 name: tweet.locationName,
                 latitude: tweet.latitude || undefined,
                 longitude: tweet.longitude || undefined,
@@ -168,11 +187,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 // Turso 벡터 검색 쿼리 실행 (단거리 순으로 20개)
                 const semanticMatches: any[] = await prisma.$queryRaw`
                     SELECT tweetId, vector_distance_cos(vector, ${vectorBuffer}) as distance 
-                    FROM TweetEmbedding 
-                    WHERE vector_distance_cos(vector, ${vectorBuffer}) < 0.2
+                    FROM "TweetEmbedding" 
+                    WHERE vector_distance_cos(vector, ${vectorBuffer}) < 0.4
                     ORDER BY distance ASC 
                     LIMIT 20
                 `;
+
 
                 if (semanticMatches.length > 0) {
                     const matchIds = semanticMatches.map(m => m.tweetId);
@@ -218,7 +238,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
                             },
                             isLiked: (tweet.likes?.length ?? 0) > 0,
                             isRetweeted: (tweet.retweets?.length ?? 0) > 0,
+                            rawDate: tweet.createdAt, // 정렬용 원본 날짜 유지
                             location: tweet.locationName ? {
+
                                 name: tweet.locationName,
                                 latitude: tweet.latitude || undefined,
                                 longitude: tweet.longitude || undefined,
@@ -231,7 +253,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
                             }))
                         }));
 
-                        results = [...formattedSemantic, ...results];
+                        // 기존 결과와 합친 후 최신순으로 재정렬 (사용자 요청 반영)
+                        results = [...formattedSemantic, ...results].sort((a, b) =>
+                            new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime()
+                        );
+
+                        // 중복 ID 제거 (동일한 트윗이 키워드와 의미 검색 모두에 잡힐 수 있음)
+                        const seenIds = new Set();
+                        results = results.filter(tweet => {
+                            if (seenIds.has(tweet.id)) return false;
+                            seenIds.add(tweet.id);
+                            return true;
+                        });
                     }
                 }
             } catch (e) {
@@ -239,12 +272,44 @@ export async function loader({ request }: LoaderFunctionArgs) {
             }
         }
 
-        nextCursor = results.length > limit ? tweets[limit - 1].createdAt.toISOString() : null;
-        if (results.length > limit) results.pop();
+        // 페이지네이션 커서 계산 (결과가 limit보다 많을 때만 생성)
+        if (results.length > limit) {
+            // ... (기존 로직 유지)
+            if (tweets.length > limit) {
+                nextCursor = tweets[limit - 1].createdAt.toISOString();
+            } else if (results[limit - 1]?.rawDate) {
+                nextCursor = new Date(results[limit - 1].rawDate).toISOString();
+            }
+            results = results.slice(0, limit);
+        }
     }
+
 
     return { session, query, type, results, nextCursor };
 }
+
+// 에러 처리 및 사용자 경험을 위한 ErrorBoundary 추가
+export function ErrorBoundary() {
+    const navigate = useNavigate();
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <HugeiconsIcon icon={Search01Icon} className="w-8 h-8 text-red-500" />
+            </div>
+            <h2 className="text-xl font-bold mb-2">검색 중 오류가 발생했습니다</h2>
+            <p className="text-muted-foreground mb-6">잠시 후 다시 시도해 주시거나 다른 검색어를 입력해 보세요.</p>
+            <Button
+                variant="outline"
+                onClick={() => navigate(-1)}
+                className="rounded-full"
+            >
+                <HugeiconsIcon icon={ArrowLeft02Icon} className="mr-2 h-4 w-4" />
+                이전 페이지로
+            </Button>
+        </div>
+    );
+}
+
 
 export default function SearchPage() {
     const { session, query, type, results: initialResults, nextCursor: initialNextCursor } = useLoaderData<typeof loader>();
@@ -319,7 +384,7 @@ export default function SearchPage() {
                             <Input
                                 name="q"
                                 defaultValue={query || ""}
-                                placeholder="C-STAY 검색"
+                                placeholder="keyword 검색"
                                 className="pl-10 rounded-full bg-accent/50 border-transparent focus:bg-background focus:border-primary transition-all"
                                 autoComplete="off"
                             />

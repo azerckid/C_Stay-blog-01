@@ -245,6 +245,7 @@ model TweetEmbedding {
   tweetId   String   @unique
   vector    Bytes // Stores FLOAT32_BLOB
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
 
