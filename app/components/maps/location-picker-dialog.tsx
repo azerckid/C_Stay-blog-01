@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 import { useState, useEffect, useCallback } from "react";
 import { useMapsLibrary } from "@vis.gl/react-google-maps";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
@@ -48,7 +49,7 @@ export function LocationPickerDialog({ open, onOpenChange, onLocationSelect }: L
         // For simplicity, simple debounce.
         const timer = setTimeout(() => {
             setIsLoading(true);
-            service.getPlacePredictions({ input: query }, (results, status) => {
+            service.getPlacePredictions({ input: query }, (results: google.maps.places.AutocompletePrediction[] | null, status: google.maps.places.PlacesServiceStatus) => {
                 setIsLoading(false);
                 if (status === google.maps.places.PlacesServiceStatus.OK && results) {
                     setPredictions(results);
@@ -68,13 +69,13 @@ export function LocationPickerDialog({ open, onOpenChange, onLocationSelect }: L
         placesService.getDetails({
             placeId: placeId,
             fields: ['name', 'geometry', 'formatted_address', 'address_components']
-        }, (place, status) => {
+        }, (place: google.maps.places.PlaceResult | null, status: google.maps.places.PlacesServiceStatus) => {
             if (status === google.maps.places.PlacesServiceStatus.OK && place && place.geometry && place.geometry.location) {
                 // Address Components extraction
                 let country = "";
                 let city = "";
 
-                place.address_components?.forEach(comp => {
+                place.address_components?.forEach((comp: google.maps.GeocoderAddressComponent) => {
                     if (comp.types.includes("country")) {
                         country = comp.long_name;
                     }

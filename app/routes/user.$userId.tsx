@@ -206,7 +206,7 @@ export default function UserProfile() {
                             }}
                             isLiked={tweet.isLiked}
                             isRetweeted={tweet.isRetweeted}
-                            media={tweet.media.map((m: any) => ({ type: m.type as "IMAGE" | "VIDEO", url: m.url }))}
+                            media={tweet.media.map((m) => ({ id: m.id, type: m.type as "IMAGE" | "VIDEO", url: m.url }))}
                             retweetedBy={tweet.retweetedBy ? {
                                 name: tweet.retweetedBy.username,
                                 username: "user",
