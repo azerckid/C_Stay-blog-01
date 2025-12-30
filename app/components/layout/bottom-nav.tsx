@@ -10,7 +10,7 @@ import { cn } from "~/lib/utils";
 
 const MOBILE_NAV_ITEMS = [
     { label: "홈", href: "/", icon: Home01Icon },
-    { label: "탐색", href: "/explore", icon: SearchIcon },
+    { label: "탐색", href: "/search", icon: SearchIcon },
     { label: "알림", href: "/notifications", icon: NotificationIcon },
     { label: "쪽지", href: "/messages", icon: MailIcon },
 ];

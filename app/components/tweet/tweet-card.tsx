@@ -85,7 +85,7 @@ interface TweetCardProps {
     }[];
     travelDate?: string | null;
 }
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 
 export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media, retweetedBy, location, tags, travelDate }: TweetCardProps) {
     const navigate = useNavigate();
@@ -319,12 +319,10 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             <div className="flex gap-3">
                 {/* Left Column: Avatar */}
                 <div className="flex-shrink-0 mr-3">
-                    <div
-                        className="h-10 w-10 rounded-full bg-secondary border border-border overflow-hidden hover:opacity-80 transition-opacity"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/user/${user.id}`);
-                        }}
+                    <Link
+                        className="h-10 w-10 rounded-full bg-secondary border border-border overflow-hidden hover:opacity-80 transition-opacity block"
+                        to={`/user/${user.id}`}
+                        onClick={(e) => e.stopPropagation()}
                     >
                         {user.image ? (
                             <img src={user.image} alt={user.name} className="h-full w-full object-cover" />
@@ -333,388 +331,384 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                                 {user.name[0]}
                             </div>
                         )}
+                    </Link>
+                </div>
+            </div>
+
+            {/* Right Column: Content & Actions */}
+            <div className="flex-1 min-w-0 flex flex-col">
+
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1 overflow-hidden">
+                        <Link
+                            className="font-bold hover:underline truncate"
+                            to={`/user/${user.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {user.name}
+                        </Link>
+                        <Link
+                            className="text-muted-foreground text-sm truncate"
+                            to={`/user/${user.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            @{user.username}
+                        </Link>
+                        <span
+                            className="text-muted-foreground text-sm flex-shrink-0 cursor-help"
+                            title={fullCreatedAt}
+                        >
+                            · {createdAt}
+                        </span>
                     </div>
+                    {isOwner && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="p-2 -mr-2 hover:bg-primary/10 hover:text-primary rounded-full transition-colors text-muted-foreground outline-none">
+                                    <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-4.5 w-4.5" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={handleEdit}>
+                                        <HugeiconsIcon icon={PencilEdit02Icon} className="mr-2 h-4 w-4" />
+                                        수정하기
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
+                                        <HugeiconsIcon icon={Delete02Icon} className="mr-2 h-4 w-4" />
+                                        삭제하기
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
+                    )}
                 </div>
 
-                {/* Right Column: Content & Actions */}
-                <div className="flex-1 min-w-0 flex flex-col">
+                <p className="text-[15px] leading-normal break-words whitespace-pre-wrap mt-1">
+                    {content}
+                </p>
 
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 overflow-hidden">
-                            <span
-                                className="font-bold hover:underline truncate"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/user/${user.id}`);
-                                }}
-                            >
-                                {user.name}
-                            </span>
-                            <span
-                                className="text-muted-foreground text-sm truncate"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/user/${user.id}`);
-                                }}
-                            >
-                                @{user.username}
-                            </span>
-                            <span
-                                className="text-muted-foreground text-sm flex-shrink-0 cursor-help"
-                                title={fullCreatedAt}
-                            >
-                                · {createdAt}
-                            </span>
-                        </div>
-                        {isOwner && (
-                            <div onClick={(e) => e.stopPropagation()}>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger className="p-2 -mr-2 hover:bg-primary/10 hover:text-primary rounded-full transition-colors text-muted-foreground outline-none">
-                                        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="h-4.5 w-4.5" />
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={handleEdit}>
-                                            <HugeiconsIcon icon={PencilEdit02Icon} className="mr-2 h-4 w-4" />
-                                            수정하기
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
-                                            <HugeiconsIcon icon={Delete02Icon} className="mr-2 h-4 w-4" />
-                                            삭제하기
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                {/* Location Pill */}
+                {/* Metadata: Location, Date, Tags */}
+                {(location || travelDate || (tags && tags.length > 0)) && (
+                    <div className="flex flex-wrap gap-3 mt-2 items-center">
+                        {location && (
+                            <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium w-fit hover:underline cursor-pointer hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); /* TODO: Show map */ }}>
+                                <HugeiconsIcon icon={Location01Icon} className="h-4 w-4" />
+                                <span>{location.name}</span>
                             </div>
                         )}
+                        {travelDate && (
+                            <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium w-fit">
+                                <HugeiconsIcon icon={Calendar03Icon} className="h-4 w-4" />
+                                <span>{format(new Date(travelDate), "yyyy. MM. dd.", { locale: ko })}</span>
+                            </div>
+                        )}
+                        {tags && tags.map(tag => (
+                            <span
+                                key={tag.id}
+                                className="text-primary text-sm hover:underline cursor-pointer font-medium"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/tags/${tag.slug}`);
+                                }}
+                            >
+                                #{tag.name}
+                            </span>
+                        ))}
                     </div>
+                )}
 
-                    <p className="text-[15px] leading-normal break-words whitespace-pre-wrap mt-1">
-                        {content}
-                    </p>
+                {/* Media Display */}
+                {media && media.length > 0 && (
+                    <div className={cn(
+                        "mt-3 rounded-2xl overflow-hidden border border-border",
+                        media.length > 1 ? "grid gap-0.5 aspect-[16/9]" : "",
+                        media.length === 2 ? "grid-cols-2" : "",
+                        media.length === 3 ? "grid-cols-2 grid-rows-2" : "",
+                        media.length === 4 ? "grid-cols-2 grid-rows-2" : ""
+                    )}>
+                        {media.map((item, index) => {
+                            const isThree = media.length === 3;
+                            const isFirstOfThree = isThree && index === 0;
 
-                    {/* Location Pill */}
-                    {/* Metadata: Location, Date, Tags */}
-                    {(location || travelDate || (tags && tags.length > 0)) && (
-                        <div className="flex flex-wrap gap-3 mt-2 items-center">
-                            {location && (
-                                <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium w-fit hover:underline cursor-pointer hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); /* TODO: Show map */ }}>
-                                    <HugeiconsIcon icon={Location01Icon} className="h-4 w-4" />
-                                    <span>{location.name}</span>
-                                </div>
-                            )}
-                            {travelDate && (
-                                <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium w-fit">
-                                    <HugeiconsIcon icon={Calendar03Icon} className="h-4 w-4" />
-                                    <span>{format(new Date(travelDate), "yyyy. MM. dd.", { locale: ko })}</span>
-                                </div>
-                            )}
-                            {tags && tags.map(tag => (
-                                <span
-                                    key={tag.id}
-                                    className="text-primary text-sm hover:underline cursor-pointer font-medium"
+                            return (
+                                <div
+                                    key={item.url}
+                                    className={cn(
+                                        "relative overflow-hidden bg-secondary",
+                                        media.length === 1 ? "w-full max-h-[600px]" : "w-full h-full",
+                                        isFirstOfThree ? "row-span-2" : ""
+                                    )}
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        navigate(`/tags/${tag.slug}`);
+                                        // TODO: Open lightbox/modal
                                     }}
                                 >
-                                    #{tag.name}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Media Display */}
-                    {media && media.length > 0 && (
-                        <div className={cn(
-                            "mt-3 rounded-2xl overflow-hidden border border-border",
-                            media.length > 1 ? "grid gap-0.5 aspect-[16/9]" : "",
-                            media.length === 2 ? "grid-cols-2" : "",
-                            media.length === 3 ? "grid-cols-2 grid-rows-2" : "",
-                            media.length === 4 ? "grid-cols-2 grid-rows-2" : ""
-                        )}>
-                            {media.map((item, index) => {
-                                const isThree = media.length === 3;
-                                const isFirstOfThree = isThree && index === 0;
-
-                                return (
-                                    <div
-                                        key={item.url}
-                                        className={cn(
-                                            "relative overflow-hidden bg-secondary",
-                                            media.length === 1 ? "w-full max-h-[600px]" : "w-full h-full",
-                                            isFirstOfThree ? "row-span-2" : ""
-                                        )}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            // TODO: Open lightbox/modal
-                                        }}
-                                    >
-                                        {item.type === 'VIDEO' ? (
-                                            <video
-                                                src={item.url}
-                                                controls
-                                                className={cn(
-                                                    "object-cover",
-                                                    media.length === 1 ? "w-full h-auto max-h-[600px]" : "w-full h-full"
-                                                )}
-                                            />
-                                        ) : (
-                                            <img
-                                                src={item.url}
-                                                alt="media"
-                                                loading="lazy"
-                                                className={cn(
-                                                    "object-cover hover:scale-105 transition-transform duration-300",
-                                                    media.length === 1 ? "w-full h-auto max-h-[600px]" : "w-full h-full"
-                                                )}
-                                            />
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center justify-between mt-3 text-muted-foreground w-full max-w-md">
-                        <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
-                                <HugeiconsIcon icon={Comment01Icon} strokeWidth={2} className="h-4.5 w-4.5" />
-                            </div>
-                            <span className="text-xs">{stats?.replies ?? 0}</span>
-                        </button>
-
-                        <button
-                            onClick={handleRetweet}
-                            className={cn(
-                                "flex items-center gap-2 group/action transition-colors pr-3",
-                                retweeted ? "text-green-500" : "hover:text-green-500"
-                            )}
-                        >
-                            <div className={cn(
-                                "p-2 rounded-full transition-colors",
-                                retweeted ? "bg-green-500/10" : "group-hover/action:bg-green-500/10"
-                            )}>
-                                <HugeiconsIcon
-                                    icon={RepeatIcon}
-                                    strokeWidth={retweeted ? 0 : 2}
-                                    className={cn(
-                                        "h-4.5 w-4.5",
-                                        retweeted && "fill-current"
+                                    {item.type === 'VIDEO' ? (
+                                        <video
+                                            src={item.url}
+                                            controls
+                                            className={cn(
+                                                "object-cover",
+                                                media.length === 1 ? "w-full h-auto max-h-[600px]" : "w-full h-full"
+                                            )}
+                                        />
+                                    ) : (
+                                        <img
+                                            src={item.url}
+                                            alt="media"
+                                            loading="lazy"
+                                            className={cn(
+                                                "object-cover hover:scale-105 transition-transform duration-300",
+                                                media.length === 1 ? "w-full h-auto max-h-[600px]" : "w-full h-full"
+                                            )}
+                                        />
                                     )}
-                                />
-                            </div>
-                            <span className={cn("text-xs", retweeted && "text-green-500")}>{retweetCount}</span>
-                        </button>
-
-                        <button
-                            onClick={handleLike}
-                            className={cn(
-                                "flex items-center gap-2 group/action transition-colors pr-3",
-                                liked ? "text-red-500" : "hover:text-red-500"
-                            )}
-                        >
-                            <div className={cn(
-                                "p-2 rounded-full transition-colors",
-                                liked ? "bg-red-500/10" : "group-hover/action:bg-red-500/10"
-                            )}>
-                                <HugeiconsIcon
-                                    icon={FavouriteIcon}
-                                    strokeWidth={liked ? 0 : 2}
-                                    className={cn(
-                                        "h-4.5 w-4.5",
-                                        liked && "fill-current"
-                                    )}
-                                />
-                            </div>
-                            <span className={cn("text-xs", liked && "text-red-500")}>{likeCount}</span>
-                        </button>
-
-                        <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
-                                <HugeiconsIcon icon={ViewIcon} strokeWidth={2} className="h-4.5 w-4.5" />
-                            </div>
-                            <span className="text-xs">{stats?.views ?? "0"}</span>
-                        </button>
-
-                        <button className="flex items-center group/action hover:text-primary transition-colors">
-                            <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
-                                <HugeiconsIcon icon={Share01Icon} strokeWidth={2} className="h-4.5 w-4.5" />
-                            </div>
-                        </button>
+                                </div>
+                            );
+                        })}
                     </div>
-                </div>
-                {/* Edit Dialog */}
-                <Dialog open={isEditing} onOpenChange={setIsEditing}>
-                    <DialogContent onClick={(e) => e.stopPropagation()}>
-                        <DialogHeader>
-                            <DialogTitle>트윗 수정하기</DialogTitle>
-                        </DialogHeader>
-                        <div className="py-4">
-                            <Textarea
-                                value={editContent}
-                                onChange={(e) => setEditContent(e.target.value)}
-                                className="min-h-[150px] text-lg resize-none border-none focus-visible:ring-0 p-0"
-                                placeholder="무슨 일이 일어나고 있나요?"
-                            />
+                )}
 
-                            {/* Edit Tags */}
-                            <div className="flex flex-wrap gap-2 mt-3">
-                                {editTags.map(tag => (
-                                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
-                                        #{tag}
-                                        <button onClick={() => setEditTags(prev => prev.filter(t => t !== tag))} className="ml-1 hover:text-destructive">
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between mt-3 text-muted-foreground w-full max-w-md">
+                    <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
+                            <HugeiconsIcon icon={Comment01Icon} strokeWidth={2} className="h-4.5 w-4.5" />
+                        </div>
+                        <span className="text-xs">{stats?.replies ?? 0}</span>
+                    </button>
+
+                    <button
+                        onClick={handleRetweet}
+                        className={cn(
+                            "flex items-center gap-2 group/action transition-colors pr-3",
+                            retweeted ? "text-green-500" : "hover:text-green-500"
+                        )}
+                    >
+                        <div className={cn(
+                            "p-2 rounded-full transition-colors",
+                            retweeted ? "bg-green-500/10" : "group-hover/action:bg-green-500/10"
+                        )}>
+                            <HugeiconsIcon
+                                icon={RepeatIcon}
+                                strokeWidth={retweeted ? 0 : 2}
+                                className={cn(
+                                    "h-4.5 w-4.5",
+                                    retweeted && "fill-current"
+                                )}
+                            />
+                        </div>
+                        <span className={cn("text-xs", retweeted && "text-green-500")}>{retweetCount}</span>
+                    </button>
+
+                    <button
+                        onClick={handleLike}
+                        className={cn(
+                            "flex items-center gap-2 group/action transition-colors pr-3",
+                            liked ? "text-red-500" : "hover:text-red-500"
+                        )}
+                    >
+                        <div className={cn(
+                            "p-2 rounded-full transition-colors",
+                            liked ? "bg-red-500/10" : "group-hover/action:bg-red-500/10"
+                        )}>
+                            <HugeiconsIcon
+                                icon={FavouriteIcon}
+                                strokeWidth={liked ? 0 : 2}
+                                className={cn(
+                                    "h-4.5 w-4.5",
+                                    liked && "fill-current"
+                                )}
+                            />
+                        </div>
+                        <span className={cn("text-xs", liked && "text-red-500")}>{likeCount}</span>
+                    </button>
+
+                    <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
+                            <HugeiconsIcon icon={ViewIcon} strokeWidth={2} className="h-4.5 w-4.5" />
+                        </div>
+                        <span className="text-xs">{stats?.views ?? "0"}</span>
+                    </button>
+
+                    <button className="flex items-center group/action hover:text-primary transition-colors">
+                        <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
+                            <HugeiconsIcon icon={Share01Icon} strokeWidth={2} className="h-4.5 w-4.5" />
+                        </div>
+                    </button>
+                </div>
+            </div>
+            {/* Edit Dialog */}
+            <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                <DialogContent onClick={(e) => e.stopPropagation()}>
+                    <DialogHeader>
+                        <DialogTitle>트윗 수정하기</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="min-h-[150px] text-lg resize-none border-none focus-visible:ring-0 p-0"
+                            placeholder="무슨 일이 일어나고 있나요?"
+                        />
+
+                        {/* Edit Tags */}
+                        <div className="flex flex-wrap gap-2 mt-3">
+                            {editTags.map(tag => (
+                                <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                                    #{tag}
+                                    <button onClick={() => setEditTags(prev => prev.filter(t => t !== tag))} className="ml-1 hover:text-destructive">
+                                        <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
+                                    </button>
+                                </Badge>
+                            ))}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditTagPickerOpen(true)}
+                                className="h-6 text-xs gap-1 rounded-full"
+                            >
+                                <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" />
+                                태그 추가
+                            </Button>
+                        </div>
+
+                        <TagPickerDialog
+                            open={editTagPickerOpen}
+                            onOpenChange={setEditTagPickerOpen}
+                            onTagsSelected={(newTags) => setEditTags(newTags)}
+                            initialTags={editTags}
+                        />
+
+                        {/* Edit Media Preview */}
+                        <div className="flex gap-2 overflow-x-auto py-2 mt-2">
+                            {/* Existing Media */}
+                            {existingMedia.map((m) => (
+                                <div key={m.id} className="relative w-20 h-20 rounded-md overflow-hidden border border-border flex-shrink-0 group">
+                                    {m.type === 'VIDEO' ? (
+                                        <video src={m.url} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <img src={m.url} alt="media" className="w-full h-full object-cover" />
+                                    )}
+                                    <button
+                                        onClick={() => removeExisting(m.id)}
+                                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
+                                    >
+                                        <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                            {/* New Media */}
+                            {newAttachments.map((m, idx) => (
+                                <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border flex-shrink-0 group">
+                                    {m.type === 'video' ? (
+                                        <video src={m.url} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <img src={m.url} alt="new media" className="w-full h-full object-cover" />
+                                    )}
+                                    <button
+                                        onClick={() => removeNew(idx)}
+                                        className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
+                                    >
+                                        <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+
+                            {/* Uploading Indicator */}
+                            {uploadFetcher.state !== "idle" && (
+                                <div className="w-20 h-20 rounded-md border border-border flex items-center justify-center bg-secondary/50 animate-pulse">
+                                    <span className="text-[10px] text-muted-foreground">업로드...</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Add Media Button */}
+                        <div className="mt-2">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileSelect}
+                                accept="image/*,video/*"
+                                className="hidden"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadFetcher.state !== "idle" || (existingMedia.length + newAttachments.length >= 4)}
+                                className="p-2 hover:bg-primary/10 rounded-full transition-colors text-primary disabled:opacity-50"
+                            >
+                                <HugeiconsIcon icon={Image01Icon} strokeWidth={2} className="h-5 w-5" />
+                            </button>
+
+                            {/* Location Picker Trigger */}
+                            <button
+                                type="button"
+                                onClick={() => setLocationPickerOpen(true)}
+                                className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:inline-block", editLocation && "text-primary")}
+                            >
+                                <HugeiconsIcon icon={Location01Icon} strokeWidth={2} className="h-5 w-5" />
+                            </button>
+
+                            {/* Date Picker Trigger */}
+                            <Popover>
+                                <PopoverTrigger
+                                    className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:inline-block", editDate && "text-primary")}
+                                >
+                                    <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="h-5 w-5" />
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        mode="single"
+                                        selected={editDate}
+                                        onSelect={setEditDate}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+
+                        {/* Previews for Edit Mode */}
+                        {(editLocation || editDate) && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {editLocation && (
+                                    <Badge variant="outline" className="gap-1 pl-2">
+                                        <HugeiconsIcon icon={Location01Icon} className="h-3 w-3" />
+                                        {editLocation.name}
+                                        <button onClick={() => setEditLocation(null)} className="ml-1 hover:text-destructive">
                                             <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
                                         </button>
                                     </Badge>
-                                ))}
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setEditTagPickerOpen(true)}
-                                    className="h-6 text-xs gap-1 rounded-full"
-                                >
-                                    <HugeiconsIcon icon={PlusSignIcon} className="h-3 w-3" />
-                                    태그 추가
-                                </Button>
-                            </div>
-
-                            <TagPickerDialog
-                                open={editTagPickerOpen}
-                                onOpenChange={setEditTagPickerOpen}
-                                onTagsSelected={(newTags) => setEditTags(newTags)}
-                                initialTags={editTags}
-                            />
-
-                            {/* Edit Media Preview */}
-                            <div className="flex gap-2 overflow-x-auto py-2 mt-2">
-                                {/* Existing Media */}
-                                {existingMedia.map((m) => (
-                                    <div key={m.id} className="relative w-20 h-20 rounded-md overflow-hidden border border-border flex-shrink-0 group">
-                                        {m.type === 'VIDEO' ? (
-                                            <video src={m.url} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <img src={m.url} alt="media" className="w-full h-full object-cover" />
-                                        )}
-                                        <button
-                                            onClick={() => removeExisting(m.id)}
-                                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
-                                        >
-                                            <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
+                                )}
+                                {editDate && (
+                                    <Badge variant="outline" className="gap-1 pl-2">
+                                        <HugeiconsIcon icon={Calendar03Icon} className="h-3 w-3" />
+                                        {format(editDate, "yyyy. MM. dd.", { locale: ko })}
+                                        <button onClick={() => setEditDate(undefined)} className="ml-1 hover:text-destructive">
+                                            <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
                                         </button>
-                                    </div>
-                                ))}
-                                {/* New Media */}
-                                {newAttachments.map((m, idx) => (
-                                    <div key={idx} className="relative w-20 h-20 rounded-md overflow-hidden border border-border flex-shrink-0 group">
-                                        {m.type === 'video' ? (
-                                            <video src={m.url} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <img src={m.url} alt="new media" className="w-full h-full object-cover" />
-                                        )}
-                                        <button
-                                            onClick={() => removeNew(idx)}
-                                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
-                                        >
-                                            <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                ))}
-
-                                {/* Uploading Indicator */}
-                                {uploadFetcher.state !== "idle" && (
-                                    <div className="w-20 h-20 rounded-md border border-border flex items-center justify-center bg-secondary/50 animate-pulse">
-                                        <span className="text-[10px] text-muted-foreground">업로드...</span>
-                                    </div>
+                                    </Badge>
                                 )}
                             </div>
+                        )}
 
-                            {/* Add Media Button */}
-                            <div className="mt-2">
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileSelect}
-                                    accept="image/*,video/*"
-                                    className="hidden"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={uploadFetcher.state !== "idle" || (existingMedia.length + newAttachments.length >= 4)}
-                                    className="p-2 hover:bg-primary/10 rounded-full transition-colors text-primary disabled:opacity-50"
-                                >
-                                    <HugeiconsIcon icon={Image01Icon} strokeWidth={2} className="h-5 w-5" />
-                                </button>
-
-                                {/* Location Picker Trigger */}
-                                <button
-                                    type="button"
-                                    onClick={() => setLocationPickerOpen(true)}
-                                    className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:inline-block", editLocation && "text-primary")}
-                                >
-                                    <HugeiconsIcon icon={Location01Icon} strokeWidth={2} className="h-5 w-5" />
-                                </button>
-
-                                {/* Date Picker Trigger */}
-                                <Popover>
-                                    <PopoverTrigger
-                                        className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:inline-block", editDate && "text-primary")}
-                                    >
-                                        <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="h-5 w-5" />
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                            mode="single"
-                                            selected={editDate}
-                                            onSelect={setEditDate}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-
-                            {/* Previews for Edit Mode */}
-                            {(editLocation || editDate) && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {editLocation && (
-                                        <Badge variant="outline" className="gap-1 pl-2">
-                                            <HugeiconsIcon icon={Location01Icon} className="h-3 w-3" />
-                                            {editLocation.name}
-                                            <button onClick={() => setEditLocation(null)} className="ml-1 hover:text-destructive">
-                                                <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
-                                            </button>
-                                        </Badge>
-                                    )}
-                                    {editDate && (
-                                        <Badge variant="outline" className="gap-1 pl-2">
-                                            <HugeiconsIcon icon={Calendar03Icon} className="h-3 w-3" />
-                                            {format(editDate, "yyyy. MM. dd.", { locale: ko })}
-                                            <button onClick={() => setEditDate(undefined)} className="ml-1 hover:text-destructive">
-                                                <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
-                                            </button>
-                                        </Badge>
-                                    )}
-                                </div>
-                            )}
-
-                            <LocationPickerDialog
-                                open={locationPickerOpen}
-                                onOpenChange={setLocationPickerOpen}
-                                onLocationSelect={setEditLocation}
-                            />
-                        </div>
-                        <DialogFooter>
-                            <DialogClose>
-                                <Button variant="ghost">취소</Button>
-                            </DialogClose>
-                            <Button onClick={handleUpdate} disabled={fetcher.state !== "idle"}>
-                                {fetcher.state !== "idle" ? "수정 중..." : "수정하기"}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            </div>
+                        <LocationPickerDialog
+                            open={locationPickerOpen}
+                            onOpenChange={setLocationPickerOpen}
+                            onLocationSelect={setEditLocation}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose>
+                            <Button variant="ghost">취소</Button>
+                        </DialogClose>
+                        <Button onClick={handleUpdate} disabled={fetcher.state !== "idle"}>
+                            {fetcher.state !== "idle" ? "수정 중..." : "수정하기"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -10,6 +10,7 @@ import { CalendarIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { cn } from "~/lib/utils";
 import { ProfileEditDialog } from "~/components/user/profile-edit-dialog";
+import { TravelMap } from "~/components/travel/travel-map";
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
     if (!data) return [{ title: "사용자 프로필 / STAYnC" }];
@@ -54,19 +55,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     let tweets: any[] = [];
 
-    const commonInclude = {
+    const tweetInclude = {
         user: true,
         likes: { where: { userId: session?.user?.id || "" } },
         retweets: { where: { userId: session?.user?.id || "" } },
         media: true,
-        originalTweet: {
-            include: {
-                user: true,
-                media: true,
-            }
-        },
         tags: { include: { travelTag: true } },
         _count: { select: { likes: true, retweets: true, replies: true } },
+    };
+
+    const commonInclude = {
+        ...tweetInclude,
+        originalTweet: {
+            include: tweetInclude
+        },
     };
 
     if (tab === "likes") {
@@ -80,6 +82,18 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             }
         });
         tweets = likes.map(l => l.tweet).filter(t => !t.deletedAt);
+    } else if (tab === "map") {
+        // 지도 탭의 경우 위치 정보가 있는 모든 트윗을 가져옴
+        tweets = await prisma.tweet.findMany({
+            where: {
+                userId: profileUser.id,
+                deletedAt: null,
+                latitude: { not: null },
+                longitude: { not: null }
+            },
+            orderBy: { createdAt: "desc" },
+            include: commonInclude,
+        });
     } else {
         const where: any = { userId: profileUser.id, deletedAt: null };
 
@@ -148,6 +162,7 @@ export default function UserProfile() {
         { id: "tweets", label: "트윗" },
         { id: "replies", label: "답글" },
         { id: "media", label: "미디어" },
+        { id: "map", label: "여행 지도" },
         { id: "likes", label: "마음에 들어요" },
     ];
 
@@ -244,9 +259,13 @@ export default function UserProfile() {
 
             </div>
 
-            {/* Tweet Feed */}
+            {/* Tweet Feed or Map */}
             <div className="flex-1 pb-20">
-                {tweets.length === 0 ? (
+                {tab === "map" ? (
+                    <div className="p-4">
+                        <TravelMap tweets={tweets} className="h-[600px]" />
+                    </div>
+                ) : tweets.length === 0 ? (
                     <div className="py-12 text-center text-muted-foreground">
                         {tab === 'tweets' && "아직 작성한 트윗이 없습니다."}
                         {tab === 'replies' && "작성한 답글이 없습니다."}

@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router";
+import { NavLink, useNavigate, Link } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Home01Icon,
@@ -76,29 +76,23 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose }: SidebarProps) {
 
                 {/* Navigation Items */}
                 <nav className="flex flex-col gap-1">
-                    {NAV_ITEMS.map((item) => {
-                        const href = item.label === "프로필" && session?.user?.id
-                            ? `/user/${session.user.id}`
-                            : item.href;
-
-                        return (
-                            <NavLink
-                                key={item.href}
-                                to={href}
-                                onClick={onClose}
-                                className={({ isActive }) =>
-                                    cn(
-                                        "flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit",
-                                        (isMobileMenu || "xl:w-full"),
-                                        isActive ? "font-bold text-primary" : "font-normal"
-                                    )
-                                }
-                            >
-                                <HugeiconsIcon icon={item.icon} strokeWidth={2} className="h-7 w-7" />
-                                <span className={cn("text-xl", isMobileMenu ? "block" : "hidden xl:block")}>{item.label}</span>
-                            </NavLink>
-                        );
-                    })}
+                    {NAV_ITEMS.map((item) => (
+                        <NavLink
+                            key={item.href}
+                            to={item.href}
+                            onClick={onClose}
+                            className={({ isActive }) =>
+                                cn(
+                                    "flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group",
+                                    (isMobileMenu || "xl:w-full"),
+                                    isActive ? "font-bold text-primary" : "font-normal"
+                                )
+                            }
+                        >
+                            <HugeiconsIcon icon={item.icon} strokeWidth={2} className="h-7 w-7" />
+                            <span className={cn("text-xl", isMobileMenu ? "block" : "hidden xl:block")}>{item.label}</span>
+                        </NavLink>
+                    ))}
 
                     {/* More Menu */}
                     <button className={cn("flex items-center gap-4 p-3 rounded-full transition-colors hover:bg-accent group w-fit text-left", (isMobileMenu || "xl:w-full"))}>
@@ -122,43 +116,51 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose }: SidebarProps) {
 
             {/* User Session Nav */}
             {session?.user && (
-                <DropdownMenu>
-                    <DropdownMenuTrigger
-                        render={
-                            <button className={cn("flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors mt-auto outline-none", isMobileMenu ? "w-full" : "w-fit xl:w-full")} />
-                        }
+                <div className={cn("flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors mt-auto group", isMobileMenu ? "w-full" : "w-fit xl:w-full")}>
+                    <Link
+                        to={`/user/${session.user.id}`}
+                        onClick={onClose}
+                        className="flex items-center gap-3 flex-1 min-w-0"
                     >
-                        <div className="h-10 w-10 shrink-0 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border pointer-events-none">
+                        <div className="h-10 w-10 shrink-0 rounded-full bg-secondary flex items-center justify-center overflow-hidden border border-border">
                             {session.user.image ? (
                                 <img src={session.user.image} alt={session.user.name ?? ""} className="h-full w-full object-cover" />
                             ) : (
                                 <HugeiconsIcon icon={UserIcon} strokeWidth={2} className="h-6 w-6 text-muted-foreground" />
                             )}
                         </div>
-                        <div className={cn("flex-col text-left overflow-hidden pointer-events-none", isMobileMenu ? "flex" : "hidden xl:flex")}>
+                        <div className={cn("flex-col text-left overflow-hidden", isMobileMenu ? "flex" : "hidden xl:flex")}>
                             <span className="text-sm font-bold truncate">{session.user.name}</span>
                             <span className="text-xs text-muted-foreground truncate">@{session.user.email?.split("@")[0]}</span>
                         </div>
-                        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className={cn("h-5 w-5 ml-auto text-muted-foreground pointer-events-none", isMobileMenu ? "block" : "hidden xl:block")} />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64 mb-2 p-2">
-                        <DropdownMenuItem className="p-0 cursor-pointer rounded-lg font-medium">
-                            <NavLink to={`/user/${session.user.id}`} className="flex items-center w-full p-3 h-full">
-                                <HugeiconsIcon icon={UserIcon} className="mr-2 h-5 w-5 block" />
-                                <span className="truncate block">프로필 보기</span>
-                            </NavLink>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            variant="destructive"
-                            className="p-3 cursor-pointer rounded-lg font-medium"
-                            onSelect={handleLogout}
-                            onClick={handleLogout}
-                        >
-                            <HugeiconsIcon icon={NotificationIcon} className="mr-2 h-5 w-5 opacity-0" /> {/* Spacer or Icon */}
-                            <span className="truncate">@{session.user.email?.split("@")[0]} 계정에서 로그아웃</span>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                    </Link>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            render={
+                                <button className="p-1 hover:bg-accent rounded-full transition-colors outline-none h-8 w-8 flex items-center justify-center">
+                                    <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className={cn("h-5 w-5 text-muted-foreground", isMobileMenu ? "block" : "hidden xl:block")} />
+                                </button>
+                            }
+                        />
+                        <DropdownMenuContent align="end" className="w-64 mb-2 p-2">
+                            <DropdownMenuItem className="p-0 cursor-pointer rounded-lg font-medium">
+                                <NavLink to={`/user/${session.user.id}`} className="flex items-center w-full p-3 h-full" onClick={onClose}>
+                                    <HugeiconsIcon icon={UserIcon} className="mr-2 h-5 w-5 block" />
+                                    <span className="truncate block">프로필 보기</span>
+                                </NavLink>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                variant="destructive"
+                                className="p-3 cursor-pointer rounded-lg font-medium"
+                                onSelect={handleLogout}
+                            >
+                                <HugeiconsIcon icon={NotificationIcon} className="mr-2 h-5 w-5 opacity-0" />
+                                <span className="truncate">@{session.user.email?.split("@")[0]} 계정에서 로그아웃</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             )}
         </aside>
     );

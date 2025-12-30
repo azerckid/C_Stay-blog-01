@@ -6,6 +6,7 @@ export default [
         route("tweet/:tweetId", "routes/tweet.$tweetId.tsx"),
         route("user/:userId", "routes/user.$userId.tsx"),
         route("user/:userId/follows", "routes/user.$userId.follows.tsx"),
+        route("profile", "routes/profile.tsx"),
         route("search", "routes/search.tsx"),
         route("tags/:slug", "routes/tags.$slug.tsx"),
     ]),
