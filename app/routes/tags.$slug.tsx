@@ -108,9 +108,31 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
     ];
 };
 
+import { TravelMap } from "~/components/travel/travel-map";
+import { useMemo } from "react";
+
+// ... (previous imports)
+
+// ... (loader and meta remain same)
+
 export default function TagFeed() {
     const { tag, tweets } = useLoaderData<typeof loader>();
     const navigate = useNavigate();
+
+    // 지도를 위한 데이터 포맷팅
+    const mapItems = useMemo(() => {
+        return tweets
+            .filter((t: any) => t.location?.latitude && t.location?.longitude)
+            .map((t: any) => ({
+                id: t.id,
+                latitude: t.location.latitude,
+                longitude: t.location.longitude,
+                createdAt: t.travelDate || t.fullCreatedAt, // 여행 날짜 우선, 없으면 작성일
+                locationName: t.location.name,
+                content: t.content,
+                media: t.media
+            }));
+    }, [tweets]);
 
     return (
         <div className="flex flex-col min-h-screen">
@@ -127,6 +149,24 @@ export default function TagFeed() {
                     <span className="text-xs text-muted-foreground">{tweets.length}개의 트윗</span>
                 </div>
             </header>
+
+            {/* Map Section */}
+            {mapItems.length > 0 && (
+                <div className="p-4 bg-muted/30 border-b border-border">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                            <span>🗺️ 여행 경로</span>
+                            <span className="text-xs font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                                {mapItems.length}개의 장소
+                            </span>
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            지도에서 여행의 발자취를 확인해보세요.
+                        </p>
+                    </div>
+                    <TravelMap tweets={mapItems} className="h-[400px] shadow-md border-border" />
+                </div>
+            )}
 
             {/* Feed */}
             <main className="pb-20">
