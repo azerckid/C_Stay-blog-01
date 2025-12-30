@@ -23,6 +23,7 @@ model User {
   bio           String?
   coverImage    String?
   status        String   @default("OFFLINE")
+  isPrivate     Boolean  @default(false) // 비공개 계정 여부
 
   // 관계 설정
   accounts            Account[]
@@ -105,6 +106,7 @@ model Tweet {
   country      String?
   city         String?
   travelPlanId String?
+  visibility   String    @default("PUBLIC") // PUBLIC, FOLLOWERS, PRIVATE
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -190,6 +192,7 @@ model Follow {
   followerId  String
   followingId String
   createdAt   DateTime @default(now())
+  status      String   @default("ACCEPTED") // ACCEPTED, PENDING
 
   follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
   following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
@@ -255,21 +258,15 @@ model TweetEmbedding {
   @@map("TweetEmbedding")
 }
 
-enum NotificationType {
-  LIKE
-  RETWEET
-  REPLY
-  FOLLOW
-}
-
+// NotificationType을 String으로 변경하여 유연성 확보 (LIKE, RETWEET, REPLY, FOLLOW, FOLLOW_REQUEST, FOLLOW_ACCEPTED)
 model Notification {
-  id          String           @id @default(cuid())
+  id          String   @id @default(cuid())
   recipientId String
   issuerId    String
-  type        NotificationType
+  type        String // LIKE, RETWEET, REPLY, FOLLOW, FOLLOW_REQUEST, FOLLOW_ACCEPTED
   tweetId     String?
-  isRead      Boolean          @default(false)
-  createdAt   DateTime         @default(now())
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   recipient User   @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
   issuer    User   @relation("IssuedNotifications", fields: [issuerId], references: [id], onDelete: Cascade)
