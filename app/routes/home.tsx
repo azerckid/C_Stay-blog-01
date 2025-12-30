@@ -23,29 +23,52 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   let followingIds: string[] = [];
 
-  // 팔로잉 피드인 경우, 팔로우한 유저 ID 목록 조회
-  if (userId && feedType === "following") {
+  // 팔로잉 ID 목록 조회 (탭과 무관하게 권한 체크를 위해 필요)
+  if (userId) {
     const follows = await prisma.follow.findMany({
-      where: { followerId: userId },
+      where: { followerId: userId, status: "ACCEPTED" }, // 승인된 팔로우만
       select: { followingId: true }
     });
     followingIds = follows.map(f => f.followingId);
   }
 
-  // 필터 조건 구성
-  const whereCondition: any = {
+  // 공개 범위 필터 생성
+  let visibilityFilter: any = {};
+  if (userId) {
+    visibilityFilter = {
+      OR: [
+        { visibility: "PUBLIC" }, // PUBLIC
+        { visibility: null },      // Legacy support
+        { visibility: "FOLLOWERS", userId: { in: [...followingIds, userId] } }, // 팔로우 중이거나 내 글
+        { visibility: "PRIVATE", userId: userId } // 내 비공개 글
+      ]
+    };
+  } else {
+    visibilityFilter = {
+      OR: [
+        { visibility: "PUBLIC" },
+        { visibility: null }
+      ]
+    };
+  }
+
+  // 기본 필터 조건 구성
+  const baseWhere: any = {
     deletedAt: null,
     parentId: null, // 홈 피드에는 답글 제외 (루트 트윗만 표시)
     ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
   };
 
-  // 팔로잉 필터 적용
+  // 탭별 추가 조건 적용
+  const whereCondition: any = {
+    ...baseWhere,
+    AND: [visibilityFilter] // 공개 범위 필터 적용
+  };
+
   if (feedType === "following") {
     if (!userId) {
-      // 비로그인 상태에서 팔로잉 탭 요청 시 빈 배열 반환 (또는 처리 로직)
       return { session, tweets: [], nextCursor: null, feedType };
     }
-    // 내가 팔로우한 사람들의 글 + 내 글(선택사항, 보통 포함함)
     whereCondition.userId = { in: [...followingIds, userId] };
   }
 
@@ -56,7 +79,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     orderBy: { createdAt: "desc" },
     include: {
       user: true,
-      media: true, // Include media
+      media: true,
       _count: { select: { likes: true, replies: true, retweets: true } },
       likes: userId ? { where: { userId }, select: { userId: true } } : false,
       retweets: userId ? { where: { userId }, select: { userId: true } } : false,
@@ -66,27 +89,28 @@ export async function loader({ request }: LoaderFunctionArgs) {
   });
 
   // 2. 리트윗 조회 (삭제되지 않은 원본 트윗이 있는 경우만)
-  // 팔로잉 피드일 경우: 내가 팔로우한 사람이 "리트윗한" 것도 보여줄 것인가? -> 보통 YES.
-  const retweetWhereCondition: any = {
+  const retweetValues: any = {
     ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
-    tweet: { deletedAt: null }
+    tweet: {
+      deletedAt: null,
+      AND: [visibilityFilter] // 원본 트윗의 공개 범위 체크
+    }
   };
 
   if (feedType === "following" && userId) {
-    // 팔로잉한 사람이 리트윗한 것들
-    retweetWhereCondition.userId = { in: followingIds };
+    retweetValues.userId = { in: followingIds };
   }
 
   const retweetsPromise = prisma.retweet.findMany({
-    where: retweetWhereCondition,
+    where: retweetValues,
     take: limit + 1,
     orderBy: { createdAt: "desc" },
     include: {
-      user: true, // 리트윗한 사람
-      tweet: { // 원본 트윗
+      user: true,
+      tweet: {
         include: {
-          user: true, // 원본 작성자
-          media: true, // Include media for retweeted tweet
+          user: true,
+          media: true,
           _count: { select: { likes: true, replies: true, retweets: true } },
           likes: userId ? { where: { userId }, select: { userId: true } } : false,
           retweets: userId ? { where: { userId }, select: { userId: true } } : false,
