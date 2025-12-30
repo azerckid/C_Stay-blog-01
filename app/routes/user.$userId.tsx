@@ -328,7 +328,8 @@ export default function UserProfile() {
                         name: profileUser.name,
                         bio: profileUser.bio,
                         image: profileUser.image || profileUser.avatarUrl,
-                        coverImage: profileUser.coverImage || null
+                        coverImage: profileUser.coverImage || null,
+                        isPrivate: profileUser.isPrivate,
                     }}
                 />
             )}

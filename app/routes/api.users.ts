@@ -18,6 +18,10 @@ export async function action({ request }: ActionFunctionArgs) {
     if (formData.has("bio")) dataToUpdate.bio = formData.get("bio") as string;
     if (formData.has("image")) dataToUpdate.image = formData.get("image") as string;
     if (formData.has("coverImage")) dataToUpdate.coverImage = formData.get("coverImage") as string;
+    if (formData.has("isPrivate")) {
+        const isPrivateStr = formData.get("isPrivate") as string;
+        dataToUpdate.isPrivate = isPrivateStr === "true";
+    }
 
     try {
         const updatedUser = await prisma.user.update({

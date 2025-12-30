@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Camera01Icon, Loading03Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
+import { Switch } from "~/components/ui/switch";
 
 interface ProfileEditDialogProps {
     open: boolean;
@@ -18,6 +19,7 @@ interface ProfileEditDialogProps {
         bio: string | null;
         image: string | null;
         coverImage: string | null;
+        isPrivate?: boolean;
     };
 }
 
@@ -30,6 +32,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
     const [bio, setBio] = useState(user.bio || "");
     const [avatarUrl, setAvatarUrl] = useState(user.image || "");
     const [coverUrl, setCoverUrl] = useState(user.coverImage || "");
+    const [isPrivate, setIsPrivate] = useState(user.isPrivate || false);
 
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
@@ -42,6 +45,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
             setBio(user.bio || "");
             setAvatarUrl(user.image || "");
             setCoverUrl(user.coverImage || "");
+            setIsPrivate(user.isPrivate || false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
@@ -95,6 +99,7 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
         const formData = new FormData();
         formData.append("name", name);
         formData.append("bio", bio);
+        formData.append("isPrivate", String(isPrivate));
         if (avatarUrl !== user.image) formData.append("image", avatarUrl);
         if (coverUrl !== user.coverImage) formData.append("coverImage", coverUrl);
 
@@ -187,6 +192,23 @@ export function ProfileEditDialog({ open, onOpenChange, user }: ProfileEditDialo
                             onChange={(e) => setBio(e.target.value)}
                             placeholder="자기소개를 입력하세요"
                             className="min-h-[100px] resize-none"
+                        />
+                    </div>
+
+                    {/* API 업데이트를 위해 isPrivate 필드 추가 */}
+                    <div className="flex items-center justify-between space-x-2 border p-4 rounded-lg">
+                        <div className="space-y-0.5">
+                            <label htmlFor="is-private" className="text-sm font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                비공개 계정
+                            </label>
+                            <div className="text-[12px] text-muted-foreground">
+                                계정을 비공개로 설정하면 승인된 팔로워만 내 트윗과 프로필 정보를 볼 수 있습니다.
+                            </div>
+                        </div>
+                        <Switch
+                            id="is-private"
+                            checked={isPrivate}
+                            onChange={(e) => setIsPrivate(e.target.checked)}
                         />
                     </div>
                 </div>
