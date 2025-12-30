@@ -13,7 +13,8 @@ import {
     Tag01Icon,
     PlusSignIcon,
     Calendar03Icon,
-    Location01Icon
+    Location01Icon,
+    Bookmark02Icon
 } from "@hugeicons/core-free-icons";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -63,6 +64,7 @@ interface TweetCardProps {
     };
     isLiked?: boolean; // 좋아요 여부 추가
     isRetweeted?: boolean; // 리트윗 여부 추가
+    isBookmarked?: boolean; // 북마크 여부 추가
     media?: {
         id: string;
         type: "IMAGE" | "VIDEO";
@@ -87,13 +89,14 @@ interface TweetCardProps {
 }
 import { useNavigate, Link } from "react-router";
 
-export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, media, retweetedBy, location, tags, travelDate }: TweetCardProps) {
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, isBookmarked = false, media, retweetedBy, location, tags, travelDate }: TweetCardProps) {
     const navigate = useNavigate();
     const { data: session } = useSession();
     // ... (기존 hook 및 state 유지)
     const fetcher = useFetcher();
     const likeFetcher = useFetcher();
     const retweetFetcher = useFetcher();
+    const bookmarkFetcher = useFetcher();
     const uploadFetcher = useFetcher(); // File upload for editing
     const revalidator = useRevalidator();
     const [isEditing, setIsEditing] = useState(false);
@@ -117,6 +120,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const [likeCount, setLikeCount] = useState(stats?.likes ?? 0);
     const [retweeted, setRetweeted] = useState(isRetweeted);
     const [retweetCount, setRetweetCount] = useState(stats?.retweets ?? 0);
+    const [bookmarked, setBookmarked] = useState(isBookmarked);
 
     const isOwner = session?.user?.id === user?.id;
 
@@ -227,7 +231,8 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const removeNew = (index: number) => {
         setNewAttachments(prev => prev.filter((_, i) => i !== index));
     };
-    const handleLike = (e: React.MouseEvent) => { /* ... */
+
+    const handleLike = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!session) {
             toast.error("로그인이 필요합니다.");
@@ -239,7 +244,8 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         setLikeCount(prev => newLiked ? prev + 1 : prev - 1);
         likeFetcher.submit({ tweetId: id }, { method: "POST", action: "/api/likes" });
     };
-    const handleRetweet = (e: React.MouseEvent) => { /* ... */
+
+    const handleRetweet = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!session) {
             toast.error("로그인이 필요합니다.");
@@ -250,6 +256,18 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         setRetweeted(newRetweeted);
         setRetweetCount(prev => newRetweeted ? prev + 1 : prev - 1);
         retweetFetcher.submit({ tweetId: id }, { method: "POST", action: "/api/retweets" });
+    };
+
+    const handleBookmark = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!session) {
+            toast.error("로그인이 필요합니다.");
+            return;
+        }
+        if (!id) return;
+        const newBookmarked = !bookmarked;
+        setBookmarked(newBookmarked);
+        bookmarkFetcher.submit({ tweetId: id }, { method: "POST", action: "/api/bookmarks" });
     };
 
     // ... (useEffect 유지)
@@ -276,6 +294,17 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             }
         }
     }, [retweetFetcher.state, retweetFetcher.data]);
+
+    // 북마크 API 응답 처리
+    useEffect(() => {
+        if (bookmarkFetcher.state === "idle" && bookmarkFetcher.data) {
+            const result = bookmarkFetcher.data as any;
+            if (!result.success) {
+                setBookmarked(!bookmarked);
+                toast.error(result.error || "북마크 처리에 실패했습니다.");
+            }
+        }
+    }, [bookmarkFetcher.state, bookmarkFetcher.data]);
 
     useEffect(() => { /* ... */
         if (fetcher.state === "idle" && fetcher.data) {
@@ -529,6 +558,28 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                             <HugeiconsIcon icon={ViewIcon} strokeWidth={2} className="h-4.5 w-4.5" />
                         </div>
                         <span className="text-xs">{stats?.views ?? "0"}</span>
+                    </button>
+
+                    <button
+                        onClick={handleBookmark}
+                        className={cn(
+                            "flex items-center group/action transition-colors pr-3",
+                            bookmarked ? "text-primary" : "hover:text-primary"
+                        )}
+                    >
+                        <div className={cn(
+                            "p-2 rounded-full transition-colors",
+                            bookmarked ? "bg-primary/10" : "group-hover/action:bg-primary/10"
+                        )}>
+                            <HugeiconsIcon
+                                icon={Bookmark02Icon}
+                                strokeWidth={bookmarked ? 0 : 2}
+                                className={cn(
+                                    "h-4.5 w-4.5",
+                                    bookmarked && "fill-current"
+                                )}
+                            />
+                        </div>
                     </button>
 
                     <button className="flex items-center group/action hover:text-primary transition-colors">

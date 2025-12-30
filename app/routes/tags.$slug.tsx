@@ -51,6 +51,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             },
             likes: userId ? { where: { userId }, select: { userId: true } } : false,
             retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+            bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
             tags: { include: { travelTag: true } }
         }
     });
@@ -69,7 +70,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         media: tweet.media.map(m => ({
             id: m.id,
             url: m.url,
-            type: m.type,
+            type: m.type as "IMAGE" | "VIDEO",
             altText: m.altText
         })),
         stats: {
@@ -80,6 +81,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         },
         isLiked: tweet.likes && tweet.likes.length > 0,
         isRetweeted: tweet.retweets && tweet.retweets.length > 0,
+        isBookmarked: tweet.bookmarks && tweet.bookmarks.length > 0,
         location: tweet.locationName ? {
             name: tweet.locationName,
             latitude: tweet.latitude || undefined,

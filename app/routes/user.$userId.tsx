@@ -59,6 +59,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         user: true,
         likes: { where: { userId: session?.user?.id || "" } },
         retweets: { where: { userId: session?.user?.id || "" } },
+        bookmarks: { where: { userId: session?.user?.id || "" } },
         media: true,
         tags: { include: { travelTag: true } },
         _count: { select: { likes: true, retweets: true, replies: true } },
@@ -123,6 +124,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             ...displayTweet,
             isLiked: displayTweet.likes.length > 0,
             isRetweeted: displayTweet.retweets.length > 0,
+            isBookmarked: displayTweet.bookmarks.length > 0,
             retweetedBy: isRetweet ? {
                 username: tweet.user.name || "Unknown",
                 userId: tweet.user.id,

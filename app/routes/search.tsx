@@ -132,6 +132,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 _count: { select: { likes: true, replies: true, retweets: true } },
                 likes: userId ? { where: { userId }, select: { userId: true } } : false,
                 retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+                bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
                 tags: { include: { travelTag: true } }
             }
         });
@@ -152,7 +153,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             media: tweet.media.map(m => ({
                 id: m.id,
                 url: m.url,
-                type: m.type,
+                type: m.type as "IMAGE" | "VIDEO",
                 altText: m.altText
             })),
             stats: {
@@ -163,6 +164,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             },
             isLiked: (tweet.likes?.length ?? 0) > 0,
             isRetweeted: (tweet.retweets?.length ?? 0) > 0,
+            isBookmarked: (tweet.bookmarks?.length ?? 0) > 0,
             rawDate: tweet.createdAt, // 정렬용 원본 날짜 유지
             location: tweet.locationName ? {
 
@@ -208,6 +210,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                                 _count: { select: { likes: true, replies: true, retweets: true } },
                                 likes: userId ? { where: { userId }, select: { userId: true } } : false,
                                 retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+                                bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
                                 tags: { include: { travelTag: true } }
                             }
                         });
@@ -227,7 +230,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                             media: tweet.media.map(m => ({
                                 id: m.id,
                                 url: m.url,
-                                type: m.type,
+                                type: m.type as "IMAGE" | "VIDEO",
                                 altText: m.altText
                             })),
                             stats: {
@@ -238,6 +241,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                             },
                             isLiked: (tweet.likes?.length ?? 0) > 0,
                             isRetweeted: (tweet.retweets?.length ?? 0) > 0,
+                            isBookmarked: (tweet.bookmarks?.length ?? 0) > 0,
                             rawDate: tweet.createdAt, // 정렬용 원본 날짜 유지
                             location: tweet.locationName ? {
 

@@ -31,6 +31,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             },
             likes: userId ? { where: { userId }, select: { userId: true } } : false,
             retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+            bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
             media: true, // Include media for main tweet
             tags: { include: { travelTag: true } }, // Include tags
             replies: {
@@ -45,6 +46,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
                     _count: { select: { likes: true, replies: true, retweets: true } },
                     likes: userId ? { where: { userId }, select: { userId: true } } : false,
                     retweets: userId ? { where: { userId }, select: { userId: true } } : false,
+                    bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
                     tags: { include: { travelTag: true } },
                 }
             }
@@ -79,6 +81,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         },
         isLiked: t.likes && t.likes.length > 0,
         isRetweeted: t.retweets && t.retweets.length > 0,
+        isBookmarked: t.bookmarks && t.bookmarks.length > 0,
         location: t.locationName ? {
             name: t.locationName,
             latitude: t.latitude,
@@ -91,7 +94,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         media: t.media ? t.media.map((m: any) => ({
             id: m.id,
             url: m.url,
-            type: m.type,
+            type: m.type as "IMAGE" | "VIDEO",
             altText: m.altText
         })) : [],
         tags: t.tags ? t.tags.map((tt: any) => ({
