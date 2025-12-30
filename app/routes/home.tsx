@@ -38,17 +38,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
     visibilityFilter = {
       OR: [
         { visibility: "PUBLIC" }, // PUBLIC
-        { visibility: null },      // Legacy support
         { visibility: "FOLLOWERS", userId: { in: [...followingIds, userId] } }, // 팔로우 중이거나 내 글
         { visibility: "PRIVATE", userId: userId } // 내 비공개 글
       ]
     };
   } else {
     visibilityFilter = {
-      OR: [
-        { visibility: "PUBLIC" },
-        { visibility: null }
-      ]
+      visibility: "PUBLIC"
     };
   }
 
