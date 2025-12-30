@@ -71,6 +71,18 @@ export async function action({ request }: ActionFunctionArgs) {
                 },
             });
             retweeted = true;
+
+            // 알림 생성 (자신의 트윗이 아닐 경우)
+            if (tweet.userId !== userId) {
+                await prisma.notification.create({
+                    data: {
+                        recipientId: tweet.userId,
+                        issuerId: userId,
+                        type: "RETWEET",
+                        tweetId: targetTweetId,
+                    },
+                });
+            }
         }
 
         // 최신 리트윗 개수 조회

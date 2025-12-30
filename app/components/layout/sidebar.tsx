@@ -33,9 +33,10 @@ interface SidebarProps {
     onAiLogOpen?: () => void;
     isMobileMenu?: boolean;
     onClose?: () => void;
+    unreadCount?: number;
 }
 
-export function Sidebar({ onAiLogOpen, isMobileMenu, onClose }: SidebarProps) {
+export function Sidebar({ onAiLogOpen, isMobileMenu, onClose, unreadCount = 0 }: SidebarProps) {
     const { data: session } = useSession();
     const navigate = useNavigate();
 
@@ -89,7 +90,14 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose }: SidebarProps) {
                                 )
                             }
                         >
-                            <HugeiconsIcon icon={item.icon} strokeWidth={2} className="h-7 w-7" />
+                            <div className="relative">
+                                <HugeiconsIcon icon={item.icon} strokeWidth={2} className="h-7 w-7" />
+                                {item.label === "알림" && unreadCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 h-5 w-5 bg-primary text-white text-[10px] flex items-center justify-center rounded-full border-2 border-background">
+                                        {unreadCount > 99 ? "9+" : unreadCount}
+                                    </span>
+                                )}
+                            </div>
                             <span className={cn("text-xl", isMobileMenu ? "block" : "hidden xl:block")}>{item.label}</span>
                         </NavLink>
                     ))}

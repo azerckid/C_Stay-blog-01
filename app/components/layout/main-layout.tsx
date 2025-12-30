@@ -26,9 +26,10 @@ interface MainLayoutProps {
             tweetTags: number;
         };
     }[];
+    unreadCount?: number;
 }
 
-export function MainLayout({ children, popularTags }: MainLayoutProps) {
+export function MainLayout({ children, popularTags, unreadCount = 0 }: MainLayoutProps) {
     const [isAiLogOpen, setIsAiLogOpen] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const { data: session } = useSession();
@@ -61,6 +62,7 @@ export function MainLayout({ children, popularTags }: MainLayoutProps) {
                             }}
                             isMobileMenu={true}
                             onClose={() => setIsDrawerOpen(false)}
+                            unreadCount={unreadCount}
                         />
                     </SheetContent>
                 </Sheet>
@@ -78,7 +80,10 @@ export function MainLayout({ children, popularTags }: MainLayoutProps) {
             <div className="flex w-full max-w-[1300px]">
                 {/* Left Sidebar - Hidden on mobile, icon-only on tablet */}
                 <div className="hidden sm:block">
-                    <Sidebar onAiLogOpen={() => setIsAiLogOpen(true)} />
+                    <Sidebar
+                        onAiLogOpen={() => setIsAiLogOpen(true)}
+                        unreadCount={unreadCount}
+                    />
                 </div>
 
                 {/* Main Feed Area */}
@@ -192,7 +197,7 @@ export function MainLayout({ children, popularTags }: MainLayoutProps) {
             />
 
             {/* Mobile Bottom Navigation */}
-            <BottomNav />
+            <BottomNav unreadCount={unreadCount} />
         </div>
     );
 }

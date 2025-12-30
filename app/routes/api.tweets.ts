@@ -240,6 +240,25 @@ export async function action({ request }: ActionFunctionArgs) {
                 }
             });
 
+            // 답글 알림 생성
+            if (tweet.parentId) {
+                const parentTweet = await prisma.tweet.findUnique({
+                    where: { id: tweet.parentId },
+                    select: { userId: true }
+                });
+
+                if (parentTweet && parentTweet.userId !== session.user.id) {
+                    await prisma.notification.create({
+                        data: {
+                            recipientId: parentTweet.userId,
+                            issuerId: session.user.id,
+                            type: "REPLY",
+                            tweetId: tweet.id, // 신규 답글 트윗 ID
+                        },
+                    });
+                }
+            }
+
             // AI 임베딩 생성 (Background 또는 Sync 지만 여기서는 안전하게 처리)
             try {
                 const embeddingText = `${tweet.content} ${tagConnectData.map((t: any) => t.travelTag.connectOrCreate.create.name).join(" ")}`;

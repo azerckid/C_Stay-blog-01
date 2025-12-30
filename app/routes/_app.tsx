@@ -3,6 +3,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { MainLayout } from "~/components/layout/main-layout";
 import { APIProvider } from "@vis.gl/react-google-maps";
 import { prisma } from "~/lib/prisma.server";
+import { getSession } from "~/lib/auth-utils.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
     const popularTags = await prisma.travelTag.findMany({
@@ -19,17 +20,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
         }
     });
 
-    return { popularTags };
+    const session = await getSession(request);
+    const userId = session?.user?.id;
+
+    const unreadCount = (userId && (prisma as any).notification) ? await (prisma as any).notification.count({
+        where: { recipientId: userId, isRead: false }
+    }) : 0;
+
+    return { popularTags, unreadCount };
 }
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
 export default function AppLayout() {
-    const { popularTags } = useLoaderData<typeof loader>();
+    const { popularTags, unreadCount } = useLoaderData<typeof loader>();
 
     return (
         <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={['places']}>
-            <MainLayout popularTags={popularTags}>
+            <MainLayout popularTags={popularTags} unreadCount={unreadCount}>
                 <Outlet />
             </MainLayout>
         </APIProvider>

@@ -72,6 +72,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                     followingId: targetUserId,
                 },
             });
+
+            // 알림 생성
+            await prisma.notification.create({
+                data: {
+                    recipientId: targetUserId,
+                    issuerId: userId,
+                    type: "FOLLOW",
+                },
+            });
             return data({ success: true, isFollowing: true, message: "팔로우했습니다." });
         }
 
