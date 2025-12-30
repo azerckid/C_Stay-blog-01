@@ -14,6 +14,7 @@ const createTweetSchema = z.object({
     travelDate: z.string().optional().nullable(),
     parentId: z.string().optional().nullable(),
     media: z.string().optional().nullable(), // JSON string of attachments
+    visibility: z.enum(["PUBLIC", "FOLLOWERS", "PRIVATE"]).optional(),
     tags: z.string().optional().nullable(), // JSON string of tags
 });
 
@@ -121,6 +122,7 @@ export async function action({ request }: ActionFunctionArgs) {
             const formData = await request.formData();
             const payload = {
                 content: formData.get("content"),
+                visibility: formData.get("visibility") || "PUBLIC",
                 location: formData.get("location") || undefined,
                 travelDate: formData.get("travelDate") || undefined,
                 parentId: formData.get("parentId") || undefined,
@@ -223,6 +225,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 data: {
                     content: content,
                     userId: session.user.id,
+                    visibility: validatedData.visibility,
                     ...locationData,
                     travelDate: validatedData.travelDate ? new Date(validatedData.travelDate as unknown as string) : undefined,
                     parentId: validatedData.parentId,
