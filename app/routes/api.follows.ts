@@ -57,19 +57,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
 
         if (existingFollow) {
-            // 언팔로우
+            // 언팔로우 또는 요청 취소
             await prisma.follow.delete({
                 where: {
                     id: existingFollow.id,
                 },
             });
-            return data({ success: true, isFollowing: false, message: "언팔로우했습니다." });
+            const message = existingFollow.status === "PENDING" ? "팔로우 요청이 취소되었습니다." : "언팔로우했습니다.";
+            return data({ success: true, isFollowing: false, isPending: false, message });
         } else {
-            // 팔로우
+            // 팔로우 요청 또는 즉시 팔로우
+            const isPrivate = (targetUser as any).isPrivate; // 타입 정의 이슈 회피
+            const status = isPrivate ? "PENDING" : "ACCEPTED";
+
             await prisma.follow.create({
                 data: {
                     followerId: userId,
                     followingId: targetUserId,
+                    status: status,
                 },
             });
 
@@ -78,10 +83,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 data: {
                     recipientId: targetUserId,
                     issuerId: userId,
-                    type: "FOLLOW",
+                    type: isPrivate ? "FOLLOW_REQUEST" : "FOLLOW",
                 },
             });
-            return data({ success: true, isFollowing: true, message: "팔로우했습니다." });
+
+            if (isPrivate) {
+                return data({ success: true, isFollowing: false, isPending: true, message: "팔로우 요청을 보냈습니다." });
+            } else {
+                return data({ success: true, isFollowing: true, isPending: false, message: "팔로우했습니다." });
+            }
         }
 
     } catch (error) {
