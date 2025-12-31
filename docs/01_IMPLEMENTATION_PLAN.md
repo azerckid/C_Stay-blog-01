@@ -28,6 +28,7 @@ STAYnC 트위터/X 클론 프로젝트의 단계별 구현 계획입니다.
 - [x] Phase 10.5: AI 기반 검색 (하이브리드 시스템) ✅
 - [x] Phase 11: AI 여행 일지 모드 (Voice & Vision) ✅
 - [x] Phase 12: 고급 기능 (북마크, 알림 등) ✅
+- [x] Phase 12.5: 메시지 (Messages) 기능 - X(Twitter) 스타일 ✅ (약 90% 완료)
 - [ ] Phase 13: 모바일 앱 배포 (Capacitor)
 - [ ] Phase 14: 테스트 및 최적화
 
@@ -1028,14 +1029,22 @@ Cloudinary를 사용한 이미지/동영상 업로드 기능
 
 ---
 
-## Phase 12.5: 메시지 (Messages) 기능 - X(Twitter) 스타일
+## Phase 12.5: 메시지 (Messages) 기능 - X(Twitter) 스타일 ✅ (약 90% 완료)
 
-> **📸 참조 문서**: [Phase 12.5 스크린샷 기반 상세 분석](./PHASE12_5_IMAGE_ANALYSIS.md)  
+> **📸 참조 문서**: [Phase 12.5 스크린샷 기반 상세 분석](./07_PHASE12_5_IMAGE_ANALYSIS.md)  
 > X(Twitter) 실제 UI 스크린샷을 분석하여 누락된 UI 요소 및 개선 사항을 확인할 수 있습니다.
 
 ### 목표
 X(Twitter)와 동일한 메시지 시스템 구현 (UI 우선 개발). 
 특히 우측 하단 고정형 '채팅 드로어(Floating Chat Drawer)'와 전체 페이지 메시지 뷰를 완벽하게 재현합니다.
+
+### 구현 완료 요약
+- ✅ **UI 프레임워크**: 메시지 드로어, 새 쪽지 작성 모달, 메시지 반응, 미디어 첨부
+- ✅ **백엔드 연동**: 메시지 전송/수신, 대화 관리, 무한 스크롤 페이지네이션
+- ✅ **실시간 기능**: Pusher를 통한 실시간 메시지, 읽음 처리, 타이핑 인디케이터
+- ✅ **미디어 전송**: 이미지/동영상 업로드 및 표시 (Cloudinary)
+- ✅ **읽음 처리 UI**: 회색/녹색 체크마크로 읽음 상태 표시
+- ⏳ **미완료**: 알림 시스템 통합, 대화방 상세 설정, 스켈레톤 로딩, 에러 핸들링
 
 ---
 
@@ -1058,16 +1067,28 @@ X(Twitter)와 동일한 메시지 시스템 구현 (UI 우선 개발).
     - [x] 사용자 검색 및 다중 선택 UI (Chips 형태)
     - [x] 모달 등장 애니메이션 및 드로어 연동
     - [x] 검색 결과 Empty State 및 스켈레톤 UI
-- [x] **미디어 첨부 UI**
+- [x] **미디어 첨부 UI 및 전송 기능**
     - [x] 파일 선택(이미지/동영상) 및 미리보기(Preview) 구현
     - [x] 첨부 파일 삭제 및 전송 버튼 상태 동기화
+    - [x] Cloudinary를 통한 이미지/동영상 업로드 및 저장
+    - [x] 메시지 전송 시 미디어 URL 및 타입 저장 (`mediaUrl`, `mediaType`)
+    - [x] 메시지 버블에 이미지/동영상 표시 (최대 높이 300px)
+    - [x] Optimistic UI에서 미디어 미리보기 지원
 - [x] **메시지 반응(Reaction) & 인터랙션**
     - [x] 메시지 버블 Hover 시 이모지 피커 노출
     - [x] 반응 선택 시 메시지에 배지(Badge) 형태로 표시
     - [x] 읽음 확인(Read Receipts) 체크 아이콘 로직 및 스타일링
-    - [x] 타이핑 인디케이터(Typing Indicator) 애니메이션 및 시뮬레이션
+      - [x] 읽지 않음: 회색 체크마크 하나 (`Tick02Icon`)
+      - [x] 읽음: 녹색 체크마크 하나 (`Tick02Icon` + `text-green-500`)
+      - [x] 실시간 읽음 상태 업데이트 (Pusher `message-read` 이벤트)
+    - [x] 타이핑 인디케이터(Typing Indicator) 실시간 구현
+      - [x] 클라이언트 측 타이핑 감지 및 API 전송
+      - [x] Pusher를 통한 실시간 타이핑 상태 수신
+      - [x] 2초간 입력 없으면 자동으로 타이핑 중지 이벤트 전송
+      - [x] 3초 후 자동으로 인디케이터 숨김
 - [x] **전체 화면 전환 및 라우팅 연동**
     - [x] `MessageDrawer`와 `/messages` 라우트 간 UI/UX 일관성 확보
+    - [x] 편지봉투 아이콘 클릭 시 "새 쪽지 작성" 모달 바로 열기 (DM 기능 강화)
   - [ ] 모바일 환경에서의 스와이프 뒤로가기 제스처 대응
 
 ---
@@ -1090,6 +1111,7 @@ UI 개발이 완료된 후, 실제 데이터를 처리하기 위한 로직을 �
 
 - [x] **데이터베이스 마이그레이션 (Prisma)**
   - [x] `DirectMessage`, `DMConversation`, `DMParticipant` 테이블 생성
+  - [x] `DirectMessage` 모델에 미디어 필드 추가 (`mediaUrl`, `mediaType`) - 이미지/동영상 전송 지원
   - [x] User 모델에 관계 필드 추가 (기존 컬럼 변경 없음)
   - [x] `prisma db push`로 스키마 동기화 완료
 - [x] **상세 API 엔드포인트 구현 (React Router Loader/Action)**
@@ -1098,20 +1120,29 @@ UI 개발이 완료된 후, 실제 데이터를 처리하기 위한 로직을 �
     - [x] `POST /api/messages/conversations`: 1:1 또는 그룹 대화 생성 (중복 방지 로직 포함)
     - [x] `PATCH /api/messages/conversations/:id/accept`: 요청 수락 로직
   - [x] **메시지 관리**:
-    - [x] `POST /api/messages`: 메시지 전송 및 대화 자동 수락
+    - [x] `POST /api/messages`: 메시지 전송 및 대화 자동 수락 (텍스트 + 미디어 지원)
     - [x] `GET /api/messages/conversations/:id?cursor=...`: 커서 기반 무한 스크롤 페이징
-    - [x] `PATCH /api/messages/:id/read`: 읽음 상태 업데이트
+      - [x] Intersection Observer를 활용한 자동 로드 (threshold: 0.1)
+      - [x] 스크롤 위치 유지 로직 구현
+    - [x] `POST /api/messages/conversations/:id/read`: 대화방 진입 시 모든 읽지 않은 메시지 읽음 처리
+    - [x] `PATCH /api/messages/:id/read`: 개별 메시지 읽음 상태 업데이트
+  - [x] **실시간 기능 API**:
+    - [x] `POST /api/messages/conversations/:id/typing`: 타이핑 인디케이터 전송
   - [x] 모든 API에 인증 및 권한 검사, Zod 스키마 검증 구현
 - [x] **실시간 메시지 수신 및 동기화 (Pusher 도입)**
   - [x] **서버 측**: Pusher 서버 설정 파일 생성 (`app/lib/pusher.server.ts`)
   - [x] **이벤트 트리거 구현**:
-    - [x] 메시지 전송 시: `new-message`, `new-message-notification` 이벤트
-    - [x] 메시지 읽음 처리 시: `message-read` 이벤트
+    - [x] 메시지 전송 시: `new-message`, `new-message-notification` 이벤트 (미디어 포함)
+    - [x] 메시지 읽음 처리 시: `message-read` 이벤트 (실시간 읽음 상태 업데이트)
+    - [x] 타이핑 인디케이터: `typing` 이벤트 (실시간 타이핑 상태 전송)
     - [x] 대화 생성 시: `new-conversation` 이벤트
     - [x] 대화 수락 시: `conversation-accepted` 이벤트
   - [x] 채널명 생성 헬퍼 함수 (`getConversationChannelId`, `getUserChannelId`)
   - [x] Pusher 오류 발생 시에도 메인 작업은 성공하도록 에러 핸들링
   - [x] **클라이언트 측**: `pusher-js`를 활용한 채널 구독 및 실시간 메시지/대화 목록 업데이트 구현 완료
+    - [x] 실시간 메시지 수신 및 Optimistic UI 업데이트
+    - [x] 실시간 읽음 처리 UI 업데이트 (`message-read` 이벤트)
+    - [x] 실시간 타이핑 인디케이터 수신 및 표시 (`typing` 이벤트)
 - [ ] **알림 시스템 통합**
   - [ ] 앱 전체 영역에서 Pusher 공통 채널을 구독하여, 어느 페이지에 있든 새 메시지 알림을 실시간으로 수신 및 배지(Badge) 업데이트
 
@@ -1128,6 +1159,23 @@ UI 개발이 완료된 후, 실제 데이터를 처리하기 위한 로직을 �
 
 3. **Optimistic UI**:
    - 메시지 전송 시 서버 응답 전 클라이언트 사이드에서 즉시 메시지 버블을 생성하여 끊김 없는 UX를 제공합니다.
+   - 미디어 포함 메시지도 Optimistic UI로 즉시 표시되며, 서버 응답 시 실제 메시지로 교체됩니다.
+
+4. **미디어 전송**:
+   - 이미지/동영상은 Cloudinary에 업로드 후 URL을 메시지와 함께 저장합니다.
+   - `mediaUrl`과 `mediaType` 필드를 통해 미디어 정보를 관리합니다.
+   - 텍스트 없이 미디어만 전송 가능합니다.
+
+5. **읽음 처리 UI**:
+   - 읽지 않음: 회색 체크마크 하나
+   - 읽음: 녹색 체크마크 하나
+   - 채팅방 진입 시 자동으로 모든 읽지 않은 메시지 읽음 처리
+   - Pusher를 통한 실시간 읽음 상태 업데이트
+
+6. **무한 스크롤**:
+   - Intersection Observer를 활용한 자동 로드 (threshold: 0.1)
+   - 과거 메시지 로드 시 스크롤 위치 유지
+   - 커서 기반 페이지네이션으로 효율적인 데이터 로딩
 
 ---
 
@@ -1135,15 +1183,17 @@ UI 개발이 완료된 후, 실제 데이터를 처리하기 위한 로직을 �
 
 ```prisma
 model DirectMessage {
-  id             String   @id @default(cuid())
-  conversationId String
-  senderId       String
-  content        String
-  isRead         Boolean  @default(false)
+  id                String   @id @default(cuid())
+  conversationId    String
+  senderId          String
+  content           String
+  mediaUrl          String?  // 이미지/동영상 URL (Cloudinary)
+  mediaType         String?  // "IMAGE" 또는 "VIDEO"
+  isRead            Boolean  @default(false)
   deletedBySender   Boolean  @default(false)
   deletedByReceiver Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   conversation   DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User           @relation(fields: [senderId], references: [id], onDelete: Cascade)
@@ -1379,5 +1429,5 @@ Capacitor를 사용하여 네이티브 모바일 앱 빌드 및 배포
 - 각 Phase는 독립적으로 작업 가능하지만, 순서대로 진행하는 것을 권장합니다.
 - 각 작업 항목 완료 후 확인 및 Git 커밋을 진행합니다.
 - AGENTS.md의 코딩 컨벤션을 준수합니다.
-- DATABASE_SCHEMA.md를 참고하여 데이터베이스 스키마를 관리합니다.
+- `02_DATABASE_SCHEMA.md`를 참고하여 데이터베이스 스키마를 관리합니다.
 

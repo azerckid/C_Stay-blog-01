@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import type { UserBasic } from "~/types/messages";
+import { toast } from "sonner";
 
 interface NewMessageModalProps {
     isOpen: boolean;
@@ -42,6 +43,11 @@ export function NewMessageModal({ isOpen, onClose, onSelectUser }: NewMessageMod
 
     // Update users list when fetcher data changes
     useEffect(() => {
+        if (fetcher.data?.error) {
+            toast.error(fetcher.data.error);
+            return;
+        }
+        
         if (fetcher.data?.users) {
             setUsers(fetcher.data.users);
         }

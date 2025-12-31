@@ -36,7 +36,16 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
   - Error: Failed actions, validation errors, etc.
   - Info: General information messages
   - Warning: Cautionary messages
+- **Error Handling**: Always implement comprehensive error handling:
+  - Check for `error` field in all fetcher responses (`fetcher.data?.error`)
+  - Display errors using `toast.error()` instead of showing raw error messages on the UI
+  - Remove optimistic updates when errors occur (e.g., remove optimistic messages on send failure)
+  - Handle API errors gracefully in all `useEffect` hooks that process fetcher data
+  - Never leave error handling as an afterthought - it must be included from the initial implementation
 - Git commit messages must follow Conventional Commits in Korean (e.g., `feat(ui): 로그인 기능 추가`).
+
+## Side-Effect Isolation
+When modifying shared components or logic, you MUST analyze the 'Impact Scope' first. Ensure that changes intended for a specific use case (e.g., AI features) do not inadvertently affect general functionality (e.g., normal chat). You MUST strictly isolate such logic using conditional checks or specific guards.
 
 ## Workflow & Safety
 - **[Safe Checkpoint Strategy]** 새로운 작업이나 중요한 변경(새 파일 생성, DB 스키마 수정, 패키지 설치 등)을 시작하기 전에, 반드시 현재 상태를 git commit하거나 작업 디렉토리가 깨끗한지 확인을 요청해야 합니다.
@@ -49,6 +58,6 @@ STAYnC is a Twitter/X clone project built with React Router v7, Turso (libSQL), 
 - Run available tests using: `npm test`
 
 ## Key Documentation
-- `docs/implementation_plan.md`: The roadmap for project completion.
-- `docs/UI_DESIGN_SYSTEM.md`: Design tokens and visual guidelines.
-- `docs/DATABASE_SCHEMA.md`: Prisma schema and storage logic.
+- `docs/01_IMPLEMENTATION_PLAN.md`: The roadmap for project completion.
+- `docs/03_UI_DESIGN_SYSTEM.md`: Design tokens and visual guidelines.
+- `docs/02_DATABASE_SCHEMA.md`: Prisma schema and storage logic.

@@ -74,6 +74,11 @@ export function MessageDrawer() {
 
     // Update conversations from fetcher
     useEffect(() => {
+        if (fetcher.data?.error) {
+            toast.error(fetcher.data.error);
+            return;
+        }
+        
         if (fetcher.data?.conversations) {
             setConversations((prev) => {
                 const newConvs = fetcher.data.conversations;
@@ -158,6 +163,13 @@ export function MessageDrawer() {
 
     // Update messages from fetcher (Initial Load or Revalidation)
     useEffect(() => {
+        if (messagesFetcher.data?.error) {
+            toast.error(messagesFetcher.data.error);
+            // Remove optimistic message on error
+            setMessages(prev => prev.filter(m => !m.isOptimistic || m.senderId !== user?.id));
+            return;
+        }
+        
         if (messagesFetcher.data?.messages) {
             setMessages(messagesFetcher.data.messages);
             setNextCursor(messagesFetcher.data.nextCursor || null);
@@ -196,10 +208,15 @@ export function MessageDrawer() {
                 return [...prev, sentMessage];
             });
         }
-    }, [messagesFetcher.data]);
+    }, [messagesFetcher.data, user?.id]);
 
     // Load more messages (pagination) when scrolling up
     useEffect(() => {
+        if (loadMoreFetcher.data?.error) {
+            toast.error(loadMoreFetcher.data.error);
+            return;
+        }
+        
         if (loadMoreFetcher.data?.messages) {
             const previousScrollHeight = messagesContainerRef.current?.scrollHeight || 0;
             
@@ -360,6 +377,11 @@ export function MessageDrawer() {
 
     // Handle new conversation creation/finding result
     useEffect(() => {
+        if (createConvFetcher.data?.error) {
+            toast.error(createConvFetcher.data.error);
+            return;
+        }
+        
         if (createConvFetcher.data?.success && createConvFetcher.data?.conversation) {
             const conv = createConvFetcher.data.conversation;
             // Add to conversation list if not exists (though Pusher should handle this, optimistic/immediate feedback is good)
@@ -479,9 +501,8 @@ export function MessageDrawer() {
 
     useEffect(() => {
         const handleToggle = () => {
-            // 편지봉투 아이콘 클릭 시 새 쪽지 작성 모달 열기 (DM 기능)
-            setIsNewMessageModalOpen(true);
-            setState("expanded-list"); // 채팅 목록 화면도 열어둠 (백그라운드)
+            // 편지봉투 아이콘 클릭 시 채팅 목록 화면 열기
+            setState((prev) => (prev === "hidden" ? "expanded-list" : "hidden"));
         };
 
         window.addEventListener('toggle-message-drawer', handleToggle);

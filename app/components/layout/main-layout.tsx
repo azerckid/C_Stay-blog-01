@@ -186,11 +186,10 @@ export function MainLayout({ children, popularTags, unreadCount = 0 }: MainLayou
                 {/* AI Log Mode Trigger Button (Top) */}
                 <button
                     onClick={() => setIsAiLogOpen(true)}
-                    className="w-14 h-14 rounded-full bg-primary text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+                    className="w-14 h-14 rounded-full bg-primary text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
                     title="AI 여행 일지 작성"
                 >
-                    <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-20 group-hover:opacity-40" />
-                    <HugeiconsIcon icon={AiViewIcon} size={28} className="relative z-10" />
+                    <HugeiconsIcon icon={AiViewIcon} size={28} />
                 </button>
 
                 {/* Message Drawer Trigger Button (Bottom) */}

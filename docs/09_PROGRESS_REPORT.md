@@ -421,10 +421,10 @@ Phase 14:     ░░░░░░░░░░░░░░░░░░░░░░
 
 ### 완료된 문서
 - ✅ `AGENTS.md` - 프로젝트 개요 및 가이드
-- ✅ `docs/DATABASE_SCHEMA.md` - 데이터베이스 스키마
-- ✅ `docs/implementation_plan.md` - 구현 계획
-- ✅ `docs/UI_DESIGN_SYSTEM.md` - UI 디자인 시스템
-- ✅ `docs/ENV_SETUP.md` - 환경 변수 설정 가이드
+- ✅ `docs/02_DATABASE_SCHEMA.md` - 데이터베이스 스키마
+- ✅ `docs/01_IMPLEMENTATION_PLAN.md` - 구현 계획
+- ✅ `docs/03_UI_DESIGN_SYSTEM.md` - UI 디자인 시스템
+- ✅ `docs/04_ENV_SETUP.md` - 환경 변수 설정 가이드
 
 ### 미완료 문서
 - ⏳ API 문서화
