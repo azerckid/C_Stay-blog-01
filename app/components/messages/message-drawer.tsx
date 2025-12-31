@@ -19,6 +19,7 @@ import { MOCK_CONVERSATIONS, MOCK_MESSAGES, MOCK_USERS } from "~/lib/mock-messag
 import type { DMConversation, DirectMessage } from "~/types/messages";
 import { formatRelative, format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { NewMessageModal } from "./new-message-modal";
 
 type DrawerState = "hidden" | "expanded-list" | "expanded-chat";
 
@@ -26,6 +27,7 @@ export function MessageDrawer() {
     const [state, setState] = useState<DrawerState>("hidden");
     const [selectedTab, setSelectedTab] = useState<"all" | "requests">("all");
     const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+    const [isNewMessageModalOpen, setIsNewMessageModalOpen] = useState(false);
 
     useEffect(() => {
         const handleToggle = () => {
@@ -48,6 +50,21 @@ export function MessageDrawer() {
         e.stopPropagation();
         setState("expanded-list");
         setSelectedConvId(null);
+    };
+
+    const handleNewMessageSelect = (userId: string) => {
+        // Find existing conversation with this user or just navigate
+        const existingConv = MOCK_CONVERSATIONS.find(c =>
+            !c.isGroup && c.participants.some(p => p.userId === userId)
+        );
+        if (existingConv) {
+            handleConvClick(existingConv.id);
+        } else {
+            // In mock mode, if no conv exists, we just select the user
+            // In a real app, this would create a new conversation
+            alert("기존 대화가 없어 새로 생성하는 시뮬레이션입니다.");
+            setState("expanded-chat");
+        }
     };
 
     const selectedConv = MOCK_CONVERSATIONS.find((c) => c.id === selectedConvId);
@@ -99,7 +116,7 @@ export function MessageDrawer() {
                                 className="p-2 hover:bg-accent rounded-full transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    alert("새 쪽지 작성 기능 구현 예정입니다.");
+                                    setIsNewMessageModalOpen(true);
                                 }}
                             >
                                 <HugeiconsIcon icon={Mail01Icon} size={20} strokeWidth={2} />
@@ -276,6 +293,12 @@ export function MessageDrawer() {
                     </div>
                 )}
             </div>
+
+            <NewMessageModal
+                isOpen={isNewMessageModalOpen}
+                onClose={() => setIsNewMessageModalOpen(false)}
+                onSelectUser={handleNewMessageSelect}
+            />
         </div>
     );
 }
