@@ -97,7 +97,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
                 image: msg.sender.image || msg.sender.avatarUrl,
             },
             isRead: msg.isRead,
-            createdAt: DateTime.fromJSDate(msg.createdAt).setLocale("ko").toRelative() || "방금 전",
+            createdAt: msg.createdAt.toISOString(),
+            mediaUrl: msg.mediaUrl,
+            mediaType: msg.mediaType,
             fullCreatedAt: DateTime.fromJSDate(msg.createdAt)
                 .setLocale("ko")
                 .toLocaleString(DateTime.DATETIME_MED),

@@ -36,6 +36,8 @@ export default [
     route("api/travel-plan-items/:id", "routes/api.travel-plan-items.$id.ts"),
     route("api/travel-stats/:userId", "routes/api.travel-stats.$userId.ts"),
     route("api/ai-travel-log", "routes/api.ai-travel-log.ts"),
+    route("api/messages/conversations/:id/typing", "routes/api.messages.conversations.$id.typing.ts"),
+    route("api/messages/conversations/:id/read", "routes/api.messages.conversations.$id.read.ts"),
     route("api/messages/conversations/:id", "routes/api.messages.conversations.$id.ts"),
     route("api/messages/conversations", "routes/api.messages.conversations.ts"),
     route("api/messages/:id/read", "routes/api.messages.$id.read.ts"),

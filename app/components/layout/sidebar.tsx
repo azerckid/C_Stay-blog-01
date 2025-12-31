@@ -117,7 +117,7 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose, unreadCount = 0 }:
                     onClick={onAiLogOpen}
                     className={cn(
                         "bg-primary text-white rounded-full font-bold hover:bg-primary/90 transition-all mt-6 flex items-center justify-center shadow-lg",
-                        isMobileMenu ? "h-14 w-14 ml-2" : "p-4 h-14 w-14 xl:h-auto xl:w-full xl:py-4 xl:px-8"
+                        isMobileMenu ? "h-14 w-14 ml-2" : "p-2 h-14 w-14 xl:h-[50px] xl:w-[191px] xl:py-2 xl:px-4"
                     )}
                 >
                     <HugeiconsIcon icon={AiViewIcon} strokeWidth={2.5} className={cn("h-7 w-7", (!isMobileMenu && "xl:mr-2"))} />

@@ -8,7 +8,16 @@ import { z } from "zod";
 // 메시지 전송 스키마
 const sendMessageSchema = z.object({
     conversationId: z.string().min(1, "대화방 ID가 필요합니다."),
-    content: z.string().min(1, "메시지 내용을 입력해주세요.").max(10000, "메시지는 10000자 이내여야 합니다."),
+    content: z.string().min(0).max(10000, "메시지는 10000자 이내여야 합니다.").optional(),
+    mediaUrl: z.string().optional(),
+    mediaType: z.enum(["IMAGE", "VIDEO"]).optional(),
+}).refine((data) => {
+    const hasContent = data.content && typeof data.content === 'string' && data.content.trim().length > 0;
+    const hasMedia = data.mediaUrl && typeof data.mediaUrl === 'string' && data.mediaUrl.length > 0;
+    return hasContent || hasMedia;
+}, {
+    message: "메시지 내용 또는 미디어가 필요합니다.",
+    path: ["content"],
 });
 
 /**
@@ -27,11 +36,36 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         const userId = session.user.id;
-        const body = await request.json();
+        
+        // Content-Type 확인
+        const contentType = request.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            console.error("[API] Invalid content-type:", contentType);
+            return data({ error: "Content-Type must be application/json" }, { status: 400 });
+        }
+        
+        let body;
+        try {
+            body = await request.json();
+        } catch (error) {
+            console.error("[API] Failed to parse JSON:", error);
+            return data({ error: "Invalid JSON format" }, { status: 400 });
+        }
 
         // 스키마 검증
         const validated = sendMessageSchema.parse(body);
-        const { conversationId, content } = validated;
+        const { conversationId, content, mediaUrl, mediaType } = validated;
+        
+        // content가 undefined이면 빈 문자열로 변환
+        const finalContent = content ?? "";
+
+        // 디버깅: 받은 데이터 확인
+        console.log("[API] Received message data:", {
+            conversationId,
+            content: content || "(empty)",
+            mediaUrl: mediaUrl || "(none)",
+            mediaType: mediaType || "(none)",
+        });
 
         // 현재 사용자가 참여한 대화인지 확인
         const participant = await prisma.dMParticipant.findUnique({
@@ -74,11 +108,18 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         // 메시지 생성
+        console.log("[API] Creating message with:", {
+            mediaUrl: mediaUrl || "(none)",
+            mediaType: mediaType || "(none)",
+        });
+        
         const message = await prisma.directMessage.create({
             data: {
                 conversationId,
                 senderId: userId,
-                content,
+                content: finalContent,
+                mediaUrl: mediaUrl || null,
+                mediaType: mediaType || null,
                 isRead: false,
             },
             include: {
@@ -119,7 +160,18 @@ export async function action({ request }: ActionFunctionArgs) {
             },
             isRead: message.isRead,
             createdAt: message.createdAt.toISOString(),
+            mediaUrl: message.mediaUrl,
+            mediaType: message.mediaType,
         };
+
+        // 디버깅: mediaUrl이 포함되어 있는지 확인
+        if (formattedMessage.mediaUrl) {
+            console.log("[API] Sending message with media:", {
+                messageId: formattedMessage.id,
+                mediaUrl: formattedMessage.mediaUrl,
+                mediaType: formattedMessage.mediaType,
+            });
+        }
 
         try {
             // 대화방 채널에 새 메시지 이벤트 전송
@@ -150,9 +202,14 @@ export async function action({ request }: ActionFunctionArgs) {
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
+            console.error("Zod validation error:", error.issues);
             return data({ error: error.issues[0].message }, { status: 400 });
         }
         console.error("Send Message Error:", error);
+        if (error instanceof Error) {
+            console.error("Error message:", error.message);
+            console.error("Error stack:", error.stack);
+        }
         return data({ error: "메시지 전송 중 오류가 발생했습니다." }, { status: 500 });
     }
 }

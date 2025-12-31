@@ -202,7 +202,7 @@ export function MainLayout({ children, popularTags, unreadCount = 0 }: MainLayou
                         window.dispatchEvent(new CustomEvent('toggle-message-drawer'));
                     }}
                     className="w-14 h-14 rounded-2xl bg-background border border-border shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
-                    title="채팅"
+                    title="쪽지 보내기"
                 >
                     <HugeiconsIcon icon={MailIcon} size={28} className="text-foreground" strokeWidth={2} />
                 </button>

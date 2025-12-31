@@ -348,6 +348,8 @@ model DirectMessage {
   conversationId    String
   senderId          String
   content           String
+  mediaUrl          String?
+  mediaType         String?
   isRead            Boolean  @default(false)
   deletedBySender   Boolean  @default(false)
   deletedByReceiver Boolean  @default(false)

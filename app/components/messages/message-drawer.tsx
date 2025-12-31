@@ -24,6 +24,7 @@ import { MOCK_CONVERSATIONS, MOCK_MESSAGES, MOCK_USERS } from "~/lib/mock-messag
 import type { DMConversation, DirectMessage } from "~/types/messages";
 import { formatRelative, format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { toast } from "sonner";
 import { NewMessageModal } from "./new-message-modal";
 import { MessageSettingsModal } from "./message-settings-modal";
 
@@ -39,6 +40,7 @@ export function MessageDrawer() {
     const [reactions, setReactions] = useState<Record<string, string>>({});
     const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null);
     const [isTyping, setIsTyping] = useState(false);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const fetcher = useFetcher<any>();
     const messagesFetcher = useFetcher<any>();
     const createConvFetcher = useFetcher<any>();
@@ -48,10 +50,14 @@ export function MessageDrawer() {
 
     const [conversations, setConversations] = useState<any[]>([]);
     const [messages, setMessages] = useState<any[]>([]); // Current conversation messages
+    const [nextCursor, setNextCursor] = useState<string | null>(null); // For pagination
     const [newMessage, setNewMessage] = useState("");
     const [pusherClient, setPusherClient] = useState<Pusher | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const selectedTabRef = useRef(selectedTab);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+    const loadMoreFetcher = useFetcher<any>();
 
     useEffect(() => {
         selectedTabRef.current = selectedTab;
@@ -86,25 +92,147 @@ export function MessageDrawer() {
         }
     }, [fetcher.data, selectedConvId]);
 
+    // 타이핑 인디케이터 전송 함수
+    const sendTypingIndicator = async (isTyping: boolean) => {
+        const convId = selectedConvId;
+        if (!convId) return;
+
+        try {
+            await fetch(`/api/messages/conversations/${convId}/typing`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isTyping }),
+            });
+        } catch (error) {
+            console.error("Failed to send typing indicator:", error);
+        }
+    };
+
+    // 타이핑 감지 및 인디케이터 전송
+    const handleTyping = () => {
+        if (!selectedConvId) return;
+
+        // 타이핑 시작 이벤트 전송
+        sendTypingIndicator(true);
+
+        // 기존 타이머 취소
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+        }
+
+        // 2초 후 타이핑 중지 이벤트 전송
+        typingTimeoutRef.current = setTimeout(() => {
+            sendTypingIndicator(false);
+        }, 2000);
+    };
+
     // Load messages when a conversation is selected
     useEffect(() => {
         if (selectedConvId) {
             messagesFetcher.load(`/api/messages/conversations/${selectedConvId}`);
+            setNextCursor(null); // Reset cursor when switching conversations
+            setIsTyping(false); // Reset typing indicator
+            
+            // 채팅방 진입 시 모든 읽지 않은 메시지를 읽음 처리
+            fetch(`/api/messages/conversations/${selectedConvId}/read`, {
+                method: "POST",
+            }).catch((error) => {
+                console.error("Failed to mark messages as read:", error);
+            });
         } else {
             setMessages([]);
+            setNextCursor(null);
+            setIsTyping(false);
         }
+
+        // Cleanup: 타이핑 타이머 정리 및 타이핑 중지 이벤트 전송
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            if (selectedConvId) {
+                sendTypingIndicator(false);
+            }
+        };
     }, [selectedConvId]);
 
     // Update messages from fetcher (Initial Load or Revalidation)
     useEffect(() => {
         if (messagesFetcher.data?.messages) {
             setMessages(messagesFetcher.data.messages);
+            setNextCursor(messagesFetcher.data.nextCursor || null);
         } else if (messagesFetcher.data?.success && messagesFetcher.data?.message) {
             // Handle successful send response: Replace optimistic message
             const sentMessage = messagesFetcher.data.message;
-            setMessages(prev => prev.map(m => (m.isOptimistic && m.content === sentMessage.content) ? sentMessage : m));
+            
+            // 디버깅: API 응답으로 받은 메시지 확인
+            if (sentMessage.mediaUrl) {
+                console.log("[Client] Received message from API:", {
+                    messageId: sentMessage.id,
+                    mediaUrl: sentMessage.mediaUrl,
+                    mediaType: sentMessage.mediaType,
+                });
+            }
+            
+            setMessages(prev => {
+                // Find the most recent optimistic message from the current user (search from end)
+                let optimisticIndex = -1;
+                for (let i = prev.length - 1; i >= 0; i--) {
+                    const m = prev[i];
+                    if (m.isOptimistic && m.senderId === sentMessage.senderId) {
+                        optimisticIndex = i;
+                        break;
+                    }
+                }
+                
+                if (optimisticIndex !== -1) {
+                    // Replace the optimistic message with the actual message
+                    const newMessages = [...prev];
+                    newMessages[optimisticIndex] = sentMessage;
+                    return newMessages;
+                }
+                
+                // If no optimistic message found, just add the new message
+                return [...prev, sentMessage];
+            });
         }
     }, [messagesFetcher.data]);
+
+    // Load more messages (pagination) when scrolling up
+    useEffect(() => {
+        if (loadMoreFetcher.data?.messages) {
+            const previousScrollHeight = messagesContainerRef.current?.scrollHeight || 0;
+            
+            setMessages(prev => [...loadMoreFetcher.data.messages, ...prev]);
+            setNextCursor(loadMoreFetcher.data.nextCursor || null);
+
+            // Restore scroll position after loading older messages
+            requestAnimationFrame(() => {
+                if (messagesContainerRef.current) {
+                    const newScrollHeight = messagesContainerRef.current.scrollHeight;
+                    const scrollDifference = newScrollHeight - previousScrollHeight;
+                    messagesContainerRef.current.scrollTop = scrollDifference;
+                }
+            });
+        }
+    }, [loadMoreFetcher.data]);
+
+    // Intersection Observer for infinite scroll (load older messages)
+    useEffect(() => {
+        if (!loadMoreRef.current || !nextCursor || loadMoreFetcher.state !== "idle") return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && nextCursor && selectedConvId) {
+                    loadMoreFetcher.load(`/api/messages/conversations/${selectedConvId}?cursor=${encodeURIComponent(nextCursor)}`);
+                }
+            },
+            { threshold: 0.1 } // 요소가 10%만 보여도 트리거하여 더 자연스러운 스크롤 경험 제공
+        );
+
+        observer.observe(loadMoreRef.current);
+        return () => observer.disconnect();
+    }, [nextCursor, selectedConvId, loadMoreFetcher.state]);
 
     // Auto-scroll to bottom
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -152,13 +280,76 @@ export function MessageDrawer() {
                 // If I am the sender, ignore this Pusher event to avoid duplication (Optimistic UI handles it)
                 if (data.message.senderId === user?.id) return;
 
-                setMessages((prev) => [...prev, data.message]);
+                // 디버깅: Pusher로 받은 메시지 확인
+                if (data.message.mediaUrl) {
+                    console.log("[Pusher] Received message with media:", {
+                        messageId: data.message.id,
+                        mediaUrl: data.message.mediaUrl,
+                        mediaType: data.message.mediaType,
+                    });
+                }
+
+                // Ensure mediaUrl and mediaType are preserved
+                const messageWithMedia = {
+                    ...data.message,
+                    mediaUrl: data.message.mediaUrl || null,
+                    mediaType: data.message.mediaType || null,
+                };
+                setMessages((prev) => [...prev, messageWithMedia]);
+            }
+        });
+
+        // 실시간 읽음 처리: 상대방이 메시지를 읽었을 때 UI 업데이트
+        channel.bind("message-read", (data: any) => {
+            if (data.conversationId === selectedConvId && data.readBy !== user?.id) {
+                console.log("[Pusher] Received message-read event:", data);
+                
+                // 상대방이 읽은 메시지들을 읽음 상태로 업데이트
+                setMessages((prev) => {
+                    const updated = prev.map((msg) => {
+                        // 내가 보낸 메시지이고, 아직 읽지 않은 상태면 읽음으로 변경
+                        // messageIds가 있으면 해당 메시지만, 없으면 모든 메시지를 읽음 처리
+                        if (msg.senderId === user?.id && !msg.isRead) {
+                            if (data.messageIds && Array.isArray(data.messageIds)) {
+                                // 특정 메시지 ID 목록이 있으면 해당 메시지만 읽음 처리
+                                if (data.messageIds.includes(msg.id)) {
+                                    return { ...msg, isRead: true };
+                                }
+                            } else {
+                                // messageIds가 없으면 모든 내가 보낸 메시지를 읽음 처리
+                                return { ...msg, isRead: true };
+                            }
+                        }
+                        return msg;
+                    });
+                    
+                    console.log("[Pusher] Updated messages:", {
+                        before: prev.filter(m => m.senderId === user?.id && !m.isRead).length,
+                        after: updated.filter(m => m.senderId === user?.id && !m.isRead).length,
+                    });
+                    
+                    return updated;
+                });
             }
         });
 
         channel.bind("conversation-accepted", (data: any) => {
             // Refresh conversation list to show accepted status if needed
             fetcher.load(`/api/messages/conversations?tab=${selectedTabRef.current}`);
+        });
+
+        // 타이핑 인디케이터 수신
+        channel.bind("typing", (data: any) => {
+            if (data.conversationId === selectedConvId && data.userId !== user?.id) {
+                setIsTyping(data.isTyping);
+                
+                // 타이핑이 시작되면 3초 후 자동으로 숨김
+                if (data.isTyping) {
+                    setTimeout(() => {
+                        setIsTyping(false);
+                    }, 3000);
+                }
+            }
         });
 
         return () => {
@@ -182,11 +373,13 @@ export function MessageDrawer() {
         }
     }, [createConvFetcher.data]);
 
-    const handleSendMessage = () => {
-        if (!newMessage.trim() || !selectedConvId) return;
+    const handleSendMessage = async () => {
+        if ((!newMessage.trim() && !selectedMedia) || !selectedConvId) return;
 
         const content = newMessage;
         const tempId = `temp-${Date.now()}`;
+        const mediaPreview = selectedMedia?.preview;
+        const mediaType = selectedMedia?.file.type.startsWith('video') ? 'VIDEO' : 'IMAGE';
 
         // Optimistic UI Update
         const optimisticMessage = {
@@ -201,15 +394,77 @@ export function MessageDrawer() {
             },
             isRead: false,
             createdAt: new Date().toISOString(),
-            isOptimistic: true
+            isOptimistic: true,
+            mediaUrl: mediaPreview, // Show preview immediately
+            mediaType: selectedMedia ? mediaType : undefined,
         };
 
         setMessages(prev => [...prev, optimisticMessage]);
         setNewMessage("");
+        setSelectedMedia(null); // Clear selection immediately for UX
+        if (fileInputRef.current) fileInputRef.current.value = "";
+
+        let uploadedMediaUrl = undefined;
+
+        // If media is selected, upload it first
+        if (selectedMedia) {
+            try {
+                const formData = new FormData();
+                formData.append("file", selectedMedia.file);
+
+                const response = await fetch("/api/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    uploadedMediaUrl = data.media?.url || data.url; // Handle both response formats
+                } else {
+                    console.error("Failed to upload media");
+                    // Remove optimistic message on upload failure
+                    setMessages(prev => prev.filter(m => m.id !== tempId));
+                    toast.error("미디어 업로드에 실패했습니다. 다시 시도해주세요.");
+                    return;
+                }
+            } catch (error) {
+                console.error("Error uploading media:", error);
+                // Remove optimistic message on upload failure
+                setMessages(prev => prev.filter(m => m.id !== tempId));
+                toast.error("미디어 업로드 중 오류가 발생했습니다. 다시 시도해주세요.");
+                return;
+            }
+        }
+
+        const messagePayload: any = {
+            conversationId: selectedConvId,
+            content: content || "",
+        };
+
+        // mediaUrl과 mediaType은 있을 때만 추가
+        if (uploadedMediaUrl) {
+            messagePayload.mediaUrl = uploadedMediaUrl;
+            messagePayload.mediaType = mediaType;
+        }
+
+        // 디버깅: 전송하는 메시지 확인
+        console.log("[Client] Sending message:", {
+            conversationId: messagePayload.conversationId,
+            content: messagePayload.content || "(empty)",
+            mediaUrl: messagePayload.mediaUrl || "(none)",
+            mediaType: messagePayload.mediaType || "(none)",
+        });
 
         messagesFetcher.submit(
-            { conversationId: selectedConvId, content },
-            { method: "post", action: "/api/messages", encType: "application/json" }
+            JSON.stringify(messagePayload),
+            { 
+                method: "post", 
+                action: "/api/messages", 
+                encType: "application/json",
+                headers: {
+                    "Content-Type": "application/json",
+                }
+            }
         );
     };
 
@@ -221,9 +476,12 @@ export function MessageDrawer() {
         }
     };
 
+
     useEffect(() => {
         const handleToggle = () => {
-            setState((prev) => (prev === "hidden" ? "expanded-list" : "hidden"));
+            // 편지봉투 아이콘 클릭 시 새 쪽지 작성 모달 열기 (DM 기능)
+            setIsNewMessageModalOpen(true);
+            setState("expanded-list"); // 채팅 목록 화면도 열어둠 (백그라운드)
         };
 
         window.addEventListener('toggle-message-drawer', handleToggle);
@@ -448,7 +706,7 @@ export function MessageDrawer() {
                 ) : (
                     /* Chat View */
                     <div className="flex-1 flex flex-col overflow-hidden">
-                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
                             {/* Profile Info Card at the top */}
                             <div className="flex flex-col items-center text-center py-6 border-b border-border mb-4">
                                 <div className="h-20 w-20 rounded-full bg-muted border border-border overflow-hidden mb-3">
@@ -475,6 +733,16 @@ export function MessageDrawer() {
                                     <span className="text-xs text-muted-foreground bg-accent/30 px-2 py-0.5 rounded-full">2023년 7월 5일</span>
                                 </div>
 
+                                {/* Load More Trigger (top) */}
+                                <div ref={loadMoreRef} className="py-2 flex justify-center">
+                                    {loadMoreFetcher.state === "loading" && (
+                                        <p className="text-xs text-muted-foreground">과거 메시지 불러오는 중...</p>
+                                    )}
+                                    {loadMoreFetcher.state === "idle" && !nextCursor && messages.length > 0 && (
+                                        <p className="text-xs text-muted-foreground">첫 번째 메시지입니다</p>
+                                    )}
+                                </div>
+
                                 {messages.map((m) => {
                                     const isMine = m.senderId === user?.id;
                                     return (
@@ -493,12 +761,21 @@ export function MessageDrawer() {
                                                 )}
 
                                                 <div className={cn(
-                                                    "px-4 py-3 rounded-2xl text-[15px] leading-normal relative",
+                                                    "px-4 py-1 rounded-2xl text-[15px] leading-normal relative",
                                                     isMine
                                                         ? "bg-primary text-white rounded-br-none"
                                                         : "bg-secondary text-foreground rounded-bl-none"
                                                 )}>
-                                                    {m.content}
+                                                    {m.mediaUrl && (
+                                                        <div className="mb-2 rounded-lg overflow-hidden max-w-full">
+                                                            {m.mediaType === 'VIDEO' ? (
+                                                                <video src={m.mediaUrl} controls className="max-w-full h-auto max-h-[300px]" />
+                                                            ) : (
+                                                                <img src={m.mediaUrl} alt="attachment" className="max-w-full h-auto max-h-[300px] object-cover" />
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {m.content && <div className="whitespace-pre-wrap">{m.content}</div>}
 
                                                     {/* Reaction Badge */}
                                                     {reactions[m.id] && (
@@ -558,14 +835,17 @@ export function MessageDrawer() {
                                                     {isMine && (
                                                         m.isOptimistic ? (
                                                             <HugeiconsIcon icon={Time01Icon} size={12} className="text-muted-foreground animate-pulse" />
+                                                        ) : m.isRead ? (
+                                                            <HugeiconsIcon
+                                                                icon={Tick02Icon}
+                                                                size={14}
+                                                                className="text-green-500 transition-colors"
+                                                            />
                                                         ) : (
                                                             <HugeiconsIcon
                                                                 icon={Tick02Icon}
                                                                 size={14}
-                                                                className={cn(
-                                                                    "transition-colors",
-                                                                    m.isRead ? "text-primary" : "text-muted-foreground"
-                                                                )}
+                                                                className="text-muted-foreground transition-colors"
                                                             />
                                                         )
                                                     )}
@@ -602,11 +882,15 @@ export function MessageDrawer() {
                             {selectedMedia && (
                                 <div className="mb-2 relative w-fit mx-2">
                                     <div className="relative rounded-xl overflow-hidden border border-border bg-secondary">
-                                        <img
-                                            src={selectedMedia.preview}
-                                            alt="Preview"
-                                            className="max-h-[200px] w-auto object-contain"
-                                        />
+                                        {selectedMedia.file.type.startsWith('video') ? (
+                                            <video src={selectedMedia.preview} controls className="max-h-[200px] w-auto object-contain" />
+                                        ) : (
+                                            <img
+                                                src={selectedMedia.preview}
+                                                alt="Preview"
+                                                className="max-h-[200px] w-auto object-contain"
+                                            />
+                                        )}
                                         <button
                                             onClick={removeMedia}
                                             className="absolute top-1 right-1 p-1.5 bg-background/80 hover:bg-background backdrop-blur-sm rounded-full transition-colors shadow-sm"
@@ -626,7 +910,10 @@ export function MessageDrawer() {
                                 </button>
                                 <textarea
                                     value={newMessage}
-                                    onChange={(e) => setNewMessage(e.target.value)}
+                                    onChange={(e) => {
+                                        setNewMessage(e.target.value);
+                                        handleTyping();
+                                    }}
                                     onKeyDown={handleKeyDown}
                                     rows={1}
                                     placeholder="쪽지 보내기"
@@ -639,7 +926,7 @@ export function MessageDrawer() {
                                 />
                                 <button
                                     onClick={handleSendMessage}
-                                    disabled={!newMessage.trim()}
+                                    disabled={!newMessage.trim() && !selectedMedia}
                                     className={cn(
                                         "p-2 text-primary hover:bg-accent rounded-full transition-colors mb-0.5",
                                         !newMessage.trim() && "opacity-50 cursor-not-allowed"
