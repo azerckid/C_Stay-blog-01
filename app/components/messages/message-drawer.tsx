@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Settings01Icon,
@@ -28,6 +28,8 @@ export function MessageDrawer() {
     const [selectedTab, setSelectedTab] = useState<"all" | "requests">("all");
     const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
     const [isNewMessageModalOpen, setIsNewMessageModalOpen] = useState(false);
+    const [selectedMedia, setSelectedMedia] = useState<{ file: File; preview: string } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const handleToggle = () => {
@@ -64,6 +66,22 @@ export function MessageDrawer() {
             // In a real app, this would create a new conversation
             alert("기존 대화가 없어 새로 생성하는 시뮬레이션입니다.");
             setState("expanded-chat");
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const preview = URL.createObjectURL(file);
+            setSelectedMedia({ file, preview });
+        }
+    };
+
+    const removeMedia = () => {
+        if (selectedMedia) {
+            URL.revokeObjectURL(selectedMedia.preview);
+            setSelectedMedia(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
         }
     };
 
@@ -276,16 +294,51 @@ export function MessageDrawer() {
 
                         {/* Input Bar */}
                         <div className="p-2 border-t border-border bg-background">
-                            <div className="flex items-center gap-1 bg-secondary rounded-2xl px-2 py-1">
-                                <button className="p-2 text-primary hover:bg-accent rounded-full transition-colors">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept="image/*,video/*"
+                                onChange={handleFileChange}
+                            />
+
+                            {/* Media Preview */}
+                            {selectedMedia && (
+                                <div className="mb-2 relative w-fit mx-2">
+                                    <div className="relative rounded-xl overflow-hidden border border-border bg-secondary">
+                                        <img
+                                            src={selectedMedia.preview}
+                                            alt="Preview"
+                                            className="max-h-[200px] w-auto object-contain"
+                                        />
+                                        <button
+                                            onClick={removeMedia}
+                                            className="absolute top-1 right-1 p-1.5 bg-background/80 hover:bg-background backdrop-blur-sm rounded-full transition-colors shadow-sm"
+                                        >
+                                            <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2.5} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-end gap-1 bg-secondary rounded-2xl px-2 py-1">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="p-2 text-primary hover:bg-accent rounded-full transition-colors mb-0.5"
+                                >
                                     <HugeiconsIcon icon={Add01Icon} size={20} strokeWidth={2} />
                                 </button>
-                                <input
-                                    type="text"
+                                <textarea
+                                    rows={1}
                                     placeholder="복호화된 메시지"
-                                    className="flex-1 bg-transparent py-2 px-1 outline-none text-[15px] placeholder:text-muted-foreground"
+                                    className="flex-1 bg-transparent py-2 px-1 outline-none text-[15px] placeholder:text-muted-foreground resize-none max-h-[120px] overflow-y-auto"
+                                    onInput={(e) => {
+                                        const target = e.target as HTMLTextAreaElement;
+                                        target.style.height = 'auto';
+                                        target.style.height = target.scrollHeight + 'px';
+                                    }}
                                 />
-                                <button className="p-2 text-primary hover:bg-accent rounded-full transition-colors opacity-50 cursor-not-allowed">
+                                <button className="p-2 text-primary hover:bg-accent rounded-full transition-colors mb-0.5 opacity-50 cursor-not-allowed">
                                     <HugeiconsIcon icon={SentIcon} size={20} strokeWidth={2} />
                                 </button>
                             </div>

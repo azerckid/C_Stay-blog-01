@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { useParams, Link } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -8,6 +9,7 @@ import {
     Image01Icon,
     AiViewIcon,
     LockIcon,
+    Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import { MOCK_CONVERSATIONS, MOCK_MESSAGES } from "~/lib/mock-messages";
@@ -19,6 +21,25 @@ export default function ConversationView() {
     const conv = MOCK_CONVERSATIONS.find(c => c.id === conversationId);
     const messages = conversationId ? MOCK_MESSAGES[conversationId] || [] : [];
     const otherParticipant = conv?.participants[0]?.user;
+
+    const [selectedMedia, setSelectedMedia] = useState<{ file: File; preview: string } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const preview = URL.createObjectURL(file);
+            setSelectedMedia({ file, preview });
+        }
+    };
+
+    const removeMedia = () => {
+        if (selectedMedia) {
+            URL.revokeObjectURL(selectedMedia.preview);
+            setSelectedMedia(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    };
 
     if (!conv) {
         return <div className="p-8">Conversation not found</div>;
@@ -114,14 +135,44 @@ export default function ConversationView() {
 
             {/* Bottom Input Area */}
             <div className="p-3 border-t border-border bg-background">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*,video/*"
+                    onChange={handleFileChange}
+                />
+
+                {/* Media Preview */}
+                {selectedMedia && (
+                    <div className="mb-3 relative w-fit mx-2 px-10">
+                        <div className="relative rounded-2xl overflow-hidden border border-border bg-secondary shadow-sm">
+                            <img
+                                src={selectedMedia.preview}
+                                alt="Preview"
+                                className="max-h-[250px] w-auto object-contain"
+                            />
+                            <button
+                                onClick={removeMedia}
+                                className="absolute top-2 right-2 p-1.5 bg-background/80 hover:bg-background backdrop-blur-sm rounded-full transition-colors shadow-md"
+                            >
+                                <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={2.5} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex items-end gap-2 px-2 py-1 bg-secondary rounded-2xl">
-                    <button className="p-2.5 text-primary hover:bg-accent rounded-full transition-colors mb-0.5">
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-2.5 text-primary hover:bg-accent rounded-full transition-colors mb-0.5"
+                    >
                         <HugeiconsIcon icon={Image01Icon} size={20} strokeWidth={2} />
                     </button>
                     <textarea
                         rows={1}
                         placeholder="새 메시지 작성하기"
-                        className="flex-1 bg-transparent py-2.5 px-1 outline-none text-[15px] placeholder:text-muted-foreground resize-none max-h-32"
+                        className="flex-1 bg-transparent py-2.5 px-1 outline-none text-[15px] placeholder:text-muted-foreground resize-none max-h-48 overflow-y-auto"
                         onInput={(e) => {
                             const target = e.target as HTMLTextAreaElement;
                             target.style.height = 'auto';
