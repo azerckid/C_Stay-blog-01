@@ -144,13 +144,9 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose, unreadCount = 0 }:
                     </Link>
 
                     <DropdownMenu>
-                        <DropdownMenuTrigger
-                            render={
-                                <button className="p-1 hover:bg-accent rounded-full transition-colors outline-none h-8 w-8 flex items-center justify-center">
-                                    <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className={cn("h-5 w-5 text-muted-foreground", isMobileMenu ? "block" : "hidden xl:block")} />
-                                </button>
-                            }
-                        />
+                        <DropdownMenuTrigger className="p-1 hover:bg-accent rounded-full transition-colors outline-none h-8 w-8 flex items-center justify-center">
+                            <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className={cn("h-5 w-5 text-muted-foreground", isMobileMenu ? "block" : "hidden xl:block")} />
+                        </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-64 mb-2 p-2">
                             <DropdownMenuItem className="p-0 cursor-pointer rounded-lg font-medium">
                                 <NavLink to={`/user/${session.user.id}`} className="flex items-center w-full p-3 h-full" onClick={onClose}>
