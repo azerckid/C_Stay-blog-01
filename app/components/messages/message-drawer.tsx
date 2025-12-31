@@ -32,6 +32,7 @@ export function MessageDrawer() {
     const [selectedMedia, setSelectedMedia] = useState<{ file: File; preview: string } | null>(null);
     const [reactions, setReactions] = useState<Record<string, string>>({});
     const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null);
+    const [isTyping, setIsTyping] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const commonEmojis = ["❤️", "😂", "😲", "😢", "🔥", "👍", "🙏"];
@@ -40,8 +41,20 @@ export function MessageDrawer() {
         const handleToggle = () => {
             setState((prev) => (prev === "hidden" ? "expanded-list" : "hidden"));
         };
+
+        // Simulate random typing indicator
+        const typingInterval = setInterval(() => {
+            if (Math.random() > 0.7) {
+                setIsTyping(true);
+                setTimeout(() => setIsTyping(false), 3000);
+            }
+        }, 8000);
+
         window.addEventListener('toggle-message-drawer', handleToggle);
-        return () => window.removeEventListener('toggle-message-drawer', handleToggle);
+        return () => {
+            window.removeEventListener('toggle-message-drawer', handleToggle);
+            clearInterval(typingInterval);
+        };
     }, []);
 
     const toggleExpand = () => {
@@ -346,16 +359,26 @@ export function MessageDrawer() {
                                                 )}
                                             </div>
                                             <div className="mt-1 px-1 flex items-center gap-1">
-                                                <span className="text-[11px] text-muted-foreground">
+                                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                                                     {format(new Date(m.createdAt), 'aaa h:mm', { locale: ko })}
+                                                    {isMine && m.isRead && (
+                                                        <HugeiconsIcon icon={SentIcon} size={12} className="text-primary" />
+                                                    )}
                                                 </span>
-                                                {isMine && m.isRead && (
-                                                    <HugeiconsIcon icon={SentIcon} size={12} className="text-primary" />
-                                                )}
                                             </div>
                                         </div>
                                     );
                                 })}
+
+                                {isTyping && (
+                                    <div className="flex flex-col items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                        <div className="bg-secondary px-4 py-3 rounded-2xl rounded-bl-none flex gap-1 items-center h-[42px]">
+                                            <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                            <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                            <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

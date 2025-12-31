@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -26,9 +26,21 @@ export default function ConversationView() {
     const [selectedMedia, setSelectedMedia] = useState<{ file: File; preview: string } | null>(null);
     const [reactions, setReactions] = useState<Record<string, string>>({});
     const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null);
+    const [isTyping, setIsTyping] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const commonEmojis = ["❤️", "😂", "😲", "😢", "🔥", "👍", "🙏"];
+
+    useEffect(() => {
+        // Simulate random typing indicator matching drawer behavior
+        const typingInterval = setInterval(() => {
+            if (Math.random() > 0.7) {
+                setIsTyping(true);
+                setTimeout(() => setIsTyping(false), 3000);
+            }
+        }, 8000);
+        return () => clearInterval(typingInterval);
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -193,6 +205,16 @@ export default function ConversationView() {
                             </div>
                         );
                     })}
+
+                    {isTyping && (
+                        <div className="flex flex-col items-start animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="bg-secondary px-4 py-3 rounded-2xl rounded-bl-none flex gap-1 items-center h-[42px]">
+                                <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" />
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
