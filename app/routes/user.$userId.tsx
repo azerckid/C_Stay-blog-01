@@ -146,16 +146,55 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         if (displayTweet.visibility === "PRIVATE" && !isCurrentUser) return null;
 
         return {
-            ...displayTweet,
-            isLiked: displayTweet.likes.length > 0,
-            isRetweeted: displayTweet.retweets.length > 0,
-            isBookmarked: displayTweet.bookmarks.length > 0,
-            retweetedBy: isRetweet ? {
-                username: tweet.user.name || "Unknown",
-                userId: tweet.user.id,
-                retweetedAt: tweet.createdAt,
+            id: displayTweet.id,
+            content: displayTweet.content,
+            createdAt: DateTime.fromJSDate(displayTweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+            fullCreatedAt: DateTime.fromJSDate(displayTweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+            user: {
+                id: displayTweet.user.id,
+                name: displayTweet.user.name || "알 수 없음",
+                username: displayTweet.user.email.split("@")[0],
+                image: displayTweet.user.image || displayTweet.user.avatarUrl,
+            },
+            media: displayTweet.media.map((m: any) => ({
+                id: m.id,
+                url: m.url,
+                type: m.type as "IMAGE" | "VIDEO",
+                altText: m.altText
+            })),
+            stats: {
+                likes: displayTweet._count?.likes || 0,
+                replies: displayTweet._count?.replies || 0,
+                retweets: displayTweet._count?.retweets || 0,
+                views: "0",
+            },
+            isLiked: displayTweet.likes && displayTweet.likes.length > 0,
+            isRetweeted: displayTweet.retweets && displayTweet.retweets.length > 0,
+            isBookmarked: displayTweet.bookmarks && displayTweet.bookmarks.length > 0,
+            location: displayTweet.locationName ? {
+                name: displayTweet.locationName,
+                latitude: displayTweet.latitude,
+                longitude: displayTweet.longitude,
+                address: displayTweet.address,
+                city: displayTweet.city,
+                country: displayTweet.country,
             } : undefined,
-            travelDate: displayTweet.travelDate ? new Date(displayTweet.travelDate).toISOString() : null
+            tags: displayTweet.tags ? displayTweet.tags.map((t: any) => ({
+                id: t.travelTag.id,
+                name: t.travelTag.name,
+                slug: t.travelTag.slug
+            })) : [],
+            travelPlan: displayTweet.travelPlan ? {
+                id: displayTweet.travelPlan.id,
+                title: displayTweet.travelPlan.title
+            } : undefined,
+            retweetedBy: isRetweet ? {
+                name: tweet.user.name || "Unknown",
+                username: tweet.user.email.split("@")[0],
+                retweetedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() ?? undefined,
+            } : undefined,
+            travelDate: displayTweet.travelDate ? new Date(displayTweet.travelDate).toISOString() : null,
+            visibility: displayTweet.visibility as "PUBLIC" | "FOLLOWERS" | "PRIVATE"
         };
     }).filter(Boolean);
 

@@ -4,9 +4,10 @@ import { prisma } from "~/lib/prisma.server";
 import { useEffect, useState } from "react";
 import { DateTime } from "luxon";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft02Icon, Location01Icon } from "@hugeicons/core-free-icons";
 import { TweetCard } from "~/components/tweet/tweet-card";
 import { TweetCompose } from "~/components/tweet/tweet-compose";
+import { Button } from "~/components/ui/button";
 import { getSession } from "~/lib/auth-utils.server";
 import { Map, AdvancedMarker } from "@vis.gl/react-google-maps";
 import { cn } from "~/lib/utils";
@@ -169,17 +170,48 @@ export default function TweetDetail() {
 
                 {/* Google Map Display */}
                 {tweet.location?.latitude && (
-                    <div className="w-full h-64 border-y border-border">
-                        <Map
-                            key={`${tweet.location.latitude}-${tweet.location.longitude}`}
-                            defaultCenter={{ lat: tweet.location.latitude, lng: tweet.location.longitude }}
-                            defaultZoom={15}
-                            mapId="DEMO_MAP_ID"
-                            className="w-full h-full"
-                            disableDefaultUI={true}
-                        >
-                            <AdvancedMarker position={{ lat: tweet.location.latitude, lng: tweet.location.longitude }} />
-                        </Map>
+                    <div className="border-y border-border bg-muted/20">
+                        <div className="p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 bg-primary/10 rounded-full">
+                                    <HugeiconsIcon icon={Location01Icon} className="h-4 w-4 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm">{tweet.location.name}</h3>
+                                    <p className="text-xs text-muted-foreground">{tweet.location.address}</p>
+                                </div>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5"
+                                onClick={() => {
+                                    if (tweet.location?.latitude && tweet.location?.longitude) {
+                                        window.open(`https://www.google.com/maps/search/?api=1&query=${tweet.location.latitude},${tweet.location.longitude}`, '_blank')
+                                    }
+                                }}
+                            >
+                                <HugeiconsIcon icon={Location01Icon} className="h-3.5 w-3.5" />
+                                지도에서 보기
+                            </Button>
+                        </div>
+                        <div className="w-full h-64 border-t border-border">
+                            <Map
+                                key={`${tweet.location.latitude}-${tweet.location.longitude}`}
+                                defaultCenter={{ lat: tweet.location.latitude, lng: tweet.location.longitude }}
+                                defaultZoom={15}
+                                mapId="DEMO_MAP_ID"
+                                className="w-full h-full"
+                                disableDefaultUI={true}
+                                gestureHandling="none" // 상세 페이지에서는 정적 느낌으로 표시 (클릭은 버튼으로)
+                            >
+                                <AdvancedMarker position={{ lat: tweet.location.latitude, lng: tweet.location.longitude }}>
+                                    <div className="p-1 px-2 bg-primary text-primary-foreground rounded-lg shadow-lg text-xs font-bold whitespace-nowrap">
+                                        {tweet.location.name}
+                                    </div>
+                                </AdvancedMarker>
+                            </Map>
+                        </div>
                     </div>
                 )}
 

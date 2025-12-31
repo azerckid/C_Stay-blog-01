@@ -164,6 +164,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
           name: tweet.locationName,
           latitude: tweet.latitude || undefined,
           longitude: tweet.longitude || undefined,
+          address: tweet.address || undefined,
+          city: tweet.city || undefined,
+          country: tweet.country || undefined,
         } : undefined,
         travelDate: tweet.travelDate?.toISOString(),
         tags: tweet.tags.map(t => ({
@@ -208,6 +211,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
           name: tweet.locationName,
           latitude: tweet.latitude || undefined,
           longitude: tweet.longitude || undefined,
+          address: tweet.address || undefined,
+          city: tweet.city || undefined,
+          country: tweet.country || undefined,
         } : undefined,
         travelDate: tweet.travelDate?.toISOString(),
         tags: tweet.tags.map(t => ({

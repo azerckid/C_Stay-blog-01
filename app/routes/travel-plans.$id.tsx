@@ -55,7 +55,8 @@ import { type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
 import { useLoaderData, useNavigate, useFetcher } from "react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { TravelMap } from "~/components/travel/travel-map";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
     const { id: planId } = params;
@@ -236,6 +237,21 @@ export default function TravelPlanDetailPage() {
         setEditingItem(item);
         setIsAddItemDialogOpen(true);
     };
+
+    // 지도를 위한 데이터 포맷팅
+    const mapItems = useMemo(() => {
+        return tweets
+            .filter((t: any) => t.location?.latitude && t.location?.longitude)
+            .map((t: any) => ({
+                id: t.id,
+                latitude: t.location.latitude,
+                longitude: t.location.longitude,
+                createdAt: t.travelDate || t.fullCreatedAt, // 여행 날짜 우선, 없으면 작성일
+                locationName: t.location.name,
+                content: t.content,
+                media: t.media
+            }));
+    }, [tweets]);
 
     return (
         <div className="flex flex-col min-h-screen">
@@ -458,6 +474,22 @@ export default function TravelPlanDetailPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Map Section */}
+            {mapItems.length > 0 && (
+                <div className="p-4 bg-muted/30 border-b border-border">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                            <HugeiconsIcon icon={Location01Icon} className="h-5 w-5 text-primary" />
+                            <span>여행 경로</span>
+                            <span className="text-xs font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                                {mapItems.length}개의 장소
+                            </span>
+                        </h2>
+                    </div>
+                    <TravelMap tweets={mapItems} className="h-[350px] shadow-sm border-border" />
+                </div>
+            )}
 
             <Tabs defaultValue="itinerary" className="w-full">
                 <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b border-border rounded-none">

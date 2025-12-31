@@ -13,6 +13,13 @@ import { useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "~/components/ui/loading-spinner";
 import { generateEmbedding, vectorToBuffer } from "~/lib/gemini.server";
 import { Button } from "~/components/ui/button";
+import { FilterIcon, Calendar03Icon, Location01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
+import { Calendar } from "~/components/ui/calendar";
+import { LocationPickerDialog, type LocationData } from "~/components/maps/location-picker-dialog";
+import { Badge } from "~/components/ui/badge";
+import { Label } from "~/components/ui/label";
+import { cn } from "~/lib/utils";
 
 
 
@@ -29,6 +36,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const query = url.searchParams.get("q");
     let type = url.searchParams.get("type");
     const cursor = url.searchParams.get("cursor"); // Tweet ID or Date
+    const country = url.searchParams.get("country");
+    const city = url.searchParams.get("city");
+    const startDate = url.searchParams.get("startDate");
+    const endDate = url.searchParams.get("endDate");
     const limit = 20;
 
     if (!query) {
@@ -108,7 +119,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                             travelTagId: exactTag.id
                         }
                     }
-                } : {
+                } : query ? {
                     // 그 외에는 일반적인 내용 및 태그 포함 검색 (Contains)
                     OR: [
                         { content: { contains: query } },
@@ -122,7 +133,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
                             }
                         }
                     ]
-                })
+                } : {}),
+                // 위치 필터 추가
+                ...(country ? { country } : {}),
+                ...(city ? { city } : {}),
+                // 날짜 필터 추가
+                ...(startDate || endDate ? {
+                    travelDate: {
+                        ...(startDate ? { gte: new Date(startDate) } : {}),
+                        ...(endDate ? { lte: new Date(endDate) } : {}),
+                    }
+                } : {})
             },
             take: limit + 1,
             orderBy: { createdAt: "desc" },
@@ -171,6 +192,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 name: tweet.locationName,
                 latitude: tweet.latitude || undefined,
                 longitude: tweet.longitude || undefined,
+                address: tweet.address || undefined,
+                city: tweet.city || undefined,
+                country: tweet.country || undefined,
             } : undefined,
             travelDate: tweet.travelDate?.toISOString(),
             tags: tweet.tags.map(t => ({
@@ -289,7 +313,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
 
 
-    return { session, query, type, results, nextCursor };
+    return {
+        session,
+        query,
+        type,
+        results,
+        nextCursor,
+        filters: { country, city, startDate, endDate }
+    };
 }
 
 // 에러 처리 및 사용자 경험을 위한 ErrorBoundary 추가
@@ -316,13 +347,14 @@ export function ErrorBoundary() {
 
 
 export default function SearchPage() {
-    const { session, query, type, results: initialResults, nextCursor: initialNextCursor } = useLoaderData<typeof loader>();
+    const { session, query, type, results: initialResults, nextCursor: initialNextCursor, filters = {} } = useLoaderData<typeof loader>() as any;
     const navigate = useNavigate();
     const fetcher = useFetcher<typeof loader>();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [results, setResults] = useState(initialResults);
     const [nextCursor, setNextCursor] = useState(initialNextCursor);
+    const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
     const loadMoreRef = useRef<HTMLDivElement>(null);
     const isLoadingMore = fetcher.state !== "idle";
 
@@ -330,7 +362,25 @@ export default function SearchPage() {
     const handleTabChange = (newType: string) => {
         const newParams = new URLSearchParams(searchParams);
         newParams.set("type", newType);
-        // Reset results when manually changing tabs (the useEffect below will capture searchParams change)
+        setSearchParams(newParams);
+    };
+
+    const handleFilterChange = (key: string, value: string | null) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (value) {
+            newParams.set(key, value);
+        } else {
+            newParams.delete(key);
+        }
+        setSearchParams(newParams);
+    };
+
+    const clearFilters = () => {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete("country");
+        newParams.delete("city");
+        newParams.delete("startDate");
+        newParams.delete("endDate");
         setSearchParams(newParams);
     };
 
@@ -356,7 +406,7 @@ export default function SearchPage() {
         if (fetcher.data && fetcher.state === "idle") {
             const newResults = fetcher.data.results;
             if (newResults && newResults.length > 0) {
-                setResults((prev) => [...prev, ...newResults]);
+                setResults((prev: any[]) => [...prev, ...newResults]);
                 setNextCursor(fetcher.data.nextCursor);
             } else {
                 setNextCursor(null);
@@ -398,7 +448,105 @@ export default function SearchPage() {
                             />
                         </div>
                     </Form>
+                    <Popover>
+                        <PopoverTrigger>
+                            <Button variant="ghost" size="icon" className={cn("rounded-full", (filters?.country || filters?.startDate) && "text-primary")}>
+                                <HugeiconsIcon icon={FilterIcon} className="h-5 w-5" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 p-4" align="end">
+                            <div className="grid gap-4">
+                                <div className="space-y-2">
+                                    <h4 className="font-medium leading-none">검색 필터</h4>
+                                    <p className="text-sm text-muted-foreground">여행지나 날짜로 결과를 좁힐 수 있습니다.</p>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label className="text-xs">여행지</Label>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="justify-start gap-2 h-9 font-normal"
+                                        onClick={() => setIsLocationDialogOpen(true)}
+                                    >
+                                        <HugeiconsIcon icon={Location01Icon} className="h-4 w-4 text-muted-foreground" />
+                                        {filters?.city ? `${filters.country} ${filters.city}` : filters?.country || "도시/국가 선택"}
+                                    </Button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid gap-2">
+                                        <Label className="text-xs">시작일</Label>
+                                        <Input
+                                            type="date"
+                                            className="h-9 text-xs"
+                                            value={filters?.startDate || ""}
+                                            onChange={(e) => handleFilterChange("startDate", e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label className="text-xs">종료일</Label>
+                                        <Input
+                                            type="date"
+                                            className="h-9 text-xs"
+                                            value={filters?.endDate || ""}
+                                            onChange={(e) => handleFilterChange("endDate", e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={clearFilters}
+                                >
+                                    필터 초기화
+                                </Button>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
                 </div>
+
+                <LocationPickerDialog
+                    open={isLocationDialogOpen}
+                    onOpenChange={setIsLocationDialogOpen}
+                    onLocationSelect={(loc: LocationData) => {
+                        const newParams = new URLSearchParams(searchParams);
+                        if (loc.country) newParams.set("country", loc.country);
+                        if (loc.city) newParams.set("city", loc.city);
+                        setSearchParams(newParams);
+                    }}
+                />
+
+                {/* Active Filters Display */}
+                {(filters?.country || filters?.startDate || filters?.endDate) && (
+                    <div className="px-4 pb-2 flex flex-wrap gap-2">
+                        {filters?.country && (
+                            <Badge variant="secondary" className="gap-1 pl-1 pr-2 py-0.5 font-normal">
+                                <button onClick={() => {
+                                    const p = new URLSearchParams(searchParams);
+                                    p.delete("country");
+                                    p.delete("city");
+                                    setSearchParams(p);
+                                }} className="p-0.5 hover:bg-background/20 rounded-full">
+                                    <HugeiconsIcon icon={Delete02Icon} className="h-3 w-3" />
+                                </button>
+                                {filters.city ? `${filters.country} ${filters.city}` : filters.country}
+                            </Badge>
+                        )}
+                        {(filters?.startDate || filters?.endDate) && (
+                            <Badge variant="secondary" className="gap-1 pl-1 pr-2 py-0.5 font-normal">
+                                <button onClick={() => {
+                                    const p = new URLSearchParams(searchParams);
+                                    p.delete("startDate");
+                                    p.delete("endDate");
+                                    setSearchParams(p);
+                                }} className="p-0.5 hover:bg-background/20 rounded-full">
+                                    <HugeiconsIcon icon={Delete02Icon} className="h-3 w-3" />
+                                </button>
+                                {filters?.startDate || "~"} ~ {filters?.endDate || ""}
+                            </Badge>
+                        )}
+                    </div>
+                )}
 
                 {/* Tabs - Only show when there is a query or just always show for navigation? */}
                 <div className="px-4">
@@ -419,7 +567,7 @@ export default function SearchPage() {
                         </TabsList>
                     </Tabs>
                 </div>
-            </header>
+            </header >
 
             <main className="flex-1">
                 {!query ? (
@@ -464,6 +612,6 @@ export default function SearchPage() {
 
                 )}
             </main>
-        </div>
+        </div >
     );
 }

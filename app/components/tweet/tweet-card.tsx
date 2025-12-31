@@ -94,6 +94,9 @@ interface TweetCardProps {
         name: string;
         latitude?: number;
         longitude?: number;
+        address?: string;
+        city?: string;
+        country?: string;
     };
     tags?: {
         id: string;
@@ -171,9 +174,9 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                 name: location.name,
                 latitude: location.latitude!,
                 longitude: location.longitude!,
-                address: "", // Missing in prop
-                city: "", // Missing in prop
-                country: "", // Missing in prop
+                address: location.address || "",
+                city: location.city || "",
+                country: location.country || "",
                 placeId: "existing"
             });
         } else {
@@ -849,25 +852,27 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                                     </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="w-[200px]">
-                                    <DropdownMenuLabel>여행 일정 연결</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {travelPlans.length === 0 ? (
-                                        <div className="p-2 text-xs text-muted-foreground text-center">등록된 일정이 없습니다.</div>
-                                    ) : (
-                                        travelPlans.map((plan: any) => (
-                                            <DropdownMenuItem
-                                                key={plan.id}
-                                                onClick={() => setEditTravelPlanId(plan.id)}
-                                                className={cn("flex flex-col items-start gap-0.5", editTravelPlanId === plan.id && "bg-accent")}
-                                            >
-                                                <div className="font-medium text-sm">{plan.title}</div>
-                                                <div className="text-[10px] text-muted-foreground">
-                                                    {plan.startDate ? format(new Date(plan.startDate), "MM.dd") : "-"}
-                                                    {plan.endDate ? ` ~ ${format(new Date(plan.endDate), "MM.dd")}` : ""}
-                                                </div>
-                                            </DropdownMenuItem>
-                                        ))
-                                    )}
+                                    <DropdownMenuGroup>
+                                        <DropdownMenuLabel>여행 일정 연결</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {travelPlans.length === 0 ? (
+                                            <div className="p-2 text-xs text-muted-foreground text-center">등록된 일정이 없습니다.</div>
+                                        ) : (
+                                            travelPlans.map((plan: any) => (
+                                                <DropdownMenuItem
+                                                    key={plan.id}
+                                                    onClick={() => setEditTravelPlanId(plan.id)}
+                                                    className={cn("flex flex-col items-start gap-0.5", editTravelPlanId === plan.id && "bg-accent")}
+                                                >
+                                                    <div className="font-medium text-sm">{plan.title}</div>
+                                                    <div className="text-[10px] text-muted-foreground">
+                                                        {plan.startDate ? format(new Date(plan.startDate), "MM.dd") : "-"}
+                                                        {plan.endDate ? ` ~ ${format(new Date(plan.endDate), "MM.dd")}` : ""}
+                                                    </div>
+                                                </DropdownMenuItem>
+                                            ))
+                                        )}
+                                    </DropdownMenuGroup>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </div>
