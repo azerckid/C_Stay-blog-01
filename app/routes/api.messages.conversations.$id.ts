@@ -1,6 +1,7 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
+import { pusher, getConversationChannelId, getUserChannelId } from "~/lib/pusher.server";
 import { DateTime } from "luxon";
 
 /**
@@ -165,7 +166,34 @@ export async function action({ request, params }: ActionFunctionArgs) {
         const updatedConversation = await prisma.dMConversation.update({
             where: { id: conversationId },
             data: { isAccepted: true },
+            include: {
+                participants: {
+                    where: { leftAt: null },
+                    select: { userId: true },
+                },
+            },
         });
+
+        // Pusher 이벤트: 대화 수락 알림 전송
+        try {
+            // 대화방 채널에 수락 이벤트 전송
+            await pusher.trigger(getConversationChannelId(conversationId), "conversation-accepted", {
+                conversationId,
+                acceptedBy: userId,
+            });
+
+            // 다른 참여자들에게도 알림
+            const otherParticipants = updatedConversation.participants.filter(
+                (p) => p.userId !== userId
+            );
+            for (const participant of otherParticipants) {
+                await pusher.trigger(getUserChannelId(participant.userId), "conversation-accepted-notification", {
+                    conversationId,
+                });
+            }
+        } catch (pusherError) {
+            console.error("Pusher trigger error:", pusherError);
+        }
 
         return data({
             success: true,

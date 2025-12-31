@@ -1,6 +1,7 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
+import { pusher, getConversationChannelId, getUserChannelId } from "~/lib/pusher.server";
 import { DateTime } from "luxon";
 import { z } from "zod";
 
@@ -233,6 +234,20 @@ export async function action({ request }: ActionFunctionArgs) {
                 },
             },
         });
+
+        // Pusher 이벤트: 새 대화 생성 알림을 참여자들에게 전송
+        try {
+            const otherParticipants = conversation.participants.filter((p) => p.userId !== userId);
+            for (const participant of otherParticipants) {
+                await pusher.trigger(getUserChannelId(participant.userId), "new-conversation", {
+                    conversationId: conversation.id,
+                    isGroup: conversation.isGroup,
+                    groupName: conversation.groupName,
+                });
+            }
+        } catch (pusherError) {
+            console.error("Pusher trigger error:", pusherError);
+        }
 
         return data({
             success: true,

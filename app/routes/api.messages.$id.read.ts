@@ -1,6 +1,7 @@
 import { type ActionFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
+import { pusher, getConversationChannelId } from "~/lib/pusher.server";
 
 /**
  * PATCH /api/messages/:id/read
@@ -68,7 +69,26 @@ export async function action({ request, params }: ActionFunctionArgs) {
         const updatedMessage = await prisma.directMessage.update({
             where: { id: messageId },
             data: { isRead: true },
+            include: {
+                conversation: true,
+            },
         });
+
+        // Pusher 이벤트 트리거: 대화방 채널에 읽음 처리 알림
+        try {
+            await pusher.trigger(
+                getConversationChannelId(message.conversationId),
+                "message-read",
+                {
+                    messageId: updatedMessage.id,
+                    conversationId: message.conversationId,
+                    readBy: userId,
+                }
+            );
+        } catch (pusherError) {
+            // Pusher 오류는 로그만 남기고 읽음 처리您是 성공으로 처리
+            console.error("Pusher trigger error:", pusherError);
+        }
 
         return data({
             success: true,

@@ -1,6 +1,7 @@
 import { type ActionFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
+import { pusher, getConversationChannelId, getUserChannelId } from "~/lib/pusher.server";
 import { z } from "zod";
 
 // 메시지 전송 스키마
@@ -78,27 +79,59 @@ export async function action({ request }: ActionFunctionArgs) {
             },
         });
 
-        // 대화방의 lastMessageAt 업데이트
-        await prisma.dMConversation.update({
+        // 대화방의 lastMessageAt 업데이트 및 참여자 조회
+        const updatedConversation = await prisma.dMConversation.update({
             where: { id: conversationId },
             data: { lastMessageAt: message.createdAt },
+            include: {
+                participants: {
+                    where: { leftAt: null },
+                    select: { userId: true },
+                },
+            },
         });
+
+        // Pusher 이벤트 트리거: 대화방 채널에 새 메시지 알림
+        const formattedMessage = {
+            id: message.id,
+            content: message.content,
+            senderId: message.senderId,
+            sender: {
+                id: message.sender.id,
+                name: message.sender.name || "알 수 없음",
+                username: message.sender.email.split("@")[0],
+                image: message.sender.image || message.sender.avatarUrl,
+            },
+            isRead: message.isRead,
+            createdAt: message.createdAt.toISOString(),
+        };
+
+        try {
+            // 대화방 채널에 새 메시지 이벤트 전송
+            await pusher.trigger(getConversationChannelId(conversationId), "new-message", {
+                message: formattedMessage,
+                conversationId,
+            });
+
+            // 발신자를 제외한 다른 참여자들에게만 알림 전송
+            const otherParticipants = updatedConversation.participants.filter(
+                (p) => p.userId !== userId
+            );
+
+            for (const participant of otherParticipants) {
+                await pusher.trigger(getUserChannelId(participant.userId), "new-message-notification", {
+                    conversationId,
+                    messageId: message.id,
+                });
+            }
+        } catch (pusherError) {
+            // Pusher 오류는 로그만 남기고 메시지 전송은 성공으로 처리
+            console.error("Pusher trigger error:", pusherError);
+        }
 
         return data({
             success: true,
-            message: {
-                id: message.id,
-                content: message.content,
-                senderId: message.senderId,
-                sender: {
-                    id: message.sender.id,
-                    name: message.sender.name || "알 수 없음",
-                    username: message.sender.email.split("@")[0],
-                    image: message.sender.image || message.sender.avatarUrl,
-                },
-                isRead: message.isRead,
-                createdAt: message.createdAt.toISOString(),
-            },
+            message: formattedMessage,
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
