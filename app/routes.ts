@@ -13,6 +13,10 @@ export default [
         route("travel-plans", "routes/travel-plans.tsx"),
         route("travel-plans/:id", "routes/travel-plans.$id.tsx"),
         route("tags/:slug", "routes/tags.$slug.tsx"),
+        route("messages", "routes/messages.tsx", [
+            index("routes/messages.index.tsx"),
+            route(":conversationId", "routes/messages.$conversationId.tsx"),
+        ]),
     ]),
     route("api/auth/*", "routes/api.auth.ts", { id: "api-auth" }),
     route("api/tweets", "routes/api.tweets.ts"),

@@ -3,9 +3,10 @@ import { BottomNav } from "./bottom-nav";
 import { Form, Link } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 
-import { Search01Icon as SearchIcon, AiViewIcon } from "@hugeicons/core-free-icons";
+import { Search01Icon as SearchIcon, AiViewIcon, Mail01Icon as MailIcon } from "@hugeicons/core-free-icons";
 import { useState } from "react";
 import { LogModeOverlay } from "../ai/log-mode-overlay";
+import { MessageDrawer } from "../messages/message-drawer";
 import { useSession } from "~/lib/auth-client";
 import {
     Sheet,
@@ -180,15 +181,32 @@ export function MainLayout({ children, popularTags, unreadCount = 0 }: MainLayou
 
             </div>
 
-            {/* AI Log Mode Trigger Button (FAB) */}
-            <button
-                onClick={() => setIsAiLogOpen(true)}
-                className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-[60] w-14 h-14 rounded-full bg-primary text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
-                title="AI 여행 일지 작성"
-            >
-                <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-20 group-hover:opacity-40" />
-                <HugeiconsIcon icon={AiViewIcon} size={28} className="relative z-10" />
-            </button>
+            {/* Floating Action Buttons (X-Style) */}
+            <div className="fixed bottom-6 right-6 z-[60] flex flex-col gap-3">
+                {/* AI Log Mode Trigger Button (Top) */}
+                <button
+                    onClick={() => setIsAiLogOpen(true)}
+                    className="w-14 h-14 rounded-full bg-primary text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+                    title="AI 여행 일지 작성"
+                >
+                    <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-20 group-hover:opacity-40" />
+                    <HugeiconsIcon icon={AiViewIcon} size={28} className="relative z-10" />
+                </button>
+
+                {/* Message Drawer Trigger Button (Bottom) */}
+                <button
+                    onClick={() => {
+                        // We need a way to communicate with MessageDrawer. 
+                        // For now, we'll use a custom event or a shared state if we move state up.
+                        // However, to keep it simple and UI-first, I'll dispatch a custom event.
+                        window.dispatchEvent(new CustomEvent('toggle-message-drawer'));
+                    }}
+                    className="w-14 h-14 rounded-2xl bg-background border border-border shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all group"
+                    title="채팅"
+                >
+                    <HugeiconsIcon icon={MailIcon} size={28} className="text-foreground" strokeWidth={2} />
+                </button>
+            </div>
 
             {/* AI Log Mode Overlay */}
             <LogModeOverlay
@@ -198,6 +216,9 @@ export function MainLayout({ children, popularTags, unreadCount = 0 }: MainLayou
 
             {/* Mobile Bottom Navigation */}
             <BottomNav unreadCount={unreadCount} />
+
+            {/* Global Message Drawer (X-Style) */}
+            <MessageDrawer />
         </div>
     );
 }
