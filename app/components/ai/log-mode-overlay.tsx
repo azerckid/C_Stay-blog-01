@@ -157,7 +157,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
     // 음성 없이 즉시 분석 (스마트 분석 모드용)
     const handleDirectAnalysis = () => {
         setTranscribedText(""); // 음성 텍스트 비움
-        generateLog(true); // IsAutoMode 보냄
+        generateLog(); // generateLog 함수 내부에서 selectedStyle === "auto" 체크
     };
 
     const generateLog = async () => {
