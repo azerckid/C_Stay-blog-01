@@ -106,6 +106,12 @@ export function MessageDrawer() {
         }
     }, [messagesFetcher.data]);
 
+    // Auto-scroll to bottom
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
     // Initialize Pusher & User Channel
     useEffect(() => {
         if (!user || !ENV?.PUSHER_KEY) return;
@@ -209,6 +215,7 @@ export function MessageDrawer() {
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) {
+            if (e.nativeEvent.isComposing) return;
             e.preventDefault();
             handleSendMessage();
         }
@@ -219,18 +226,9 @@ export function MessageDrawer() {
             setState((prev) => (prev === "hidden" ? "expanded-list" : "hidden"));
         };
 
-        // Simulate random typing indicator
-        const typingInterval = setInterval(() => {
-            if (Math.random() > 0.7) {
-                setIsTyping(true);
-                setTimeout(() => setIsTyping(false), 3000);
-            }
-        }, 8000);
-
         window.addEventListener('toggle-message-drawer', handleToggle);
         return () => {
             window.removeEventListener('toggle-message-drawer', handleToggle);
-            clearInterval(typingInterval);
         };
     }, []);
 
@@ -586,6 +584,7 @@ export function MessageDrawer() {
                                         </div>
                                     </div>
                                 )}
+                                <div ref={messagesEndRef} />
                             </div>
                         </div>
 
