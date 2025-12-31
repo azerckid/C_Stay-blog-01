@@ -51,6 +51,13 @@ import {
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "~/components/ui/select";
 import { useState, useEffect, useRef } from "react";
 
 interface TweetCardProps {
@@ -127,6 +134,9 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const [locationPickerOpen, setLocationPickerOpen] = useState(false);
     const [editDate, setEditDate] = useState<Date | undefined>(undefined);
     const [editVisibility, setEditVisibility] = useState<"PUBLIC" | "FOLLOWERS" | "PRIVATE">(visibility);
+    const [editTravelPlanId, setEditTravelPlanId] = useState<string | undefined>(travelPlan?.id);
+    const [travelPlans, setTravelPlans] = useState<any[]>([]);
+    const travelPlanFetcher = useFetcher();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 낙관적 UI를 위한 로컬 상태
@@ -171,6 +181,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         }
         setEditDate(travelDate ? new Date(travelDate) : undefined);
         setEditVisibility(visibility); // Initialize visibility state
+        setEditTravelPlanId(travelPlan?.id);
     };
     const handleUpdate = () => { /* ... */
         if (!id) return;
@@ -195,6 +206,11 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         }
 
         payload.visibility = editVisibility;
+        if (editTravelPlanId) {
+            payload.travelPlanId = editTravelPlanId;
+        } else {
+            payload.travelPlanId = ""; // Clear
+        }
 
         // Always send tags to ensure they are synced (empty array clears tags)
         payload.tags = JSON.stringify(editTags);
@@ -239,6 +255,18 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             }
         }
     }, [uploadFetcher.state, uploadFetcher.data]);
+
+    useEffect(() => {
+        if (isEditing && travelPlanFetcher.state === "idle" && !travelPlanFetcher.data) {
+            travelPlanFetcher.load("/api/travel-plans");
+        }
+    }, [isEditing]);
+
+    useEffect(() => {
+        if (travelPlanFetcher.data) {
+            setTravelPlans((travelPlanFetcher.data as any).travelPlans || []);
+        }
+    }, [travelPlanFetcher.data]);
 
     const removeExisting = (mediaId: string) => {
         setExistingMedia(prev => prev.filter(m => m.id !== mediaId));
@@ -809,11 +837,53 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                                     />
                                 </PopoverContent>
                             </Popover>
+
+                            {/* Travel Plan Selector Trigger */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger>
+                                    <button
+                                        type="button"
+                                        className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors", editTravelPlanId && "text-primary")}
+                                    >
+                                        <HugeiconsIcon icon={Airplane01Icon} strokeWidth={2} className="h-5 w-5" />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-[200px]">
+                                    <DropdownMenuLabel>여행 일정 연결</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {travelPlans.length === 0 ? (
+                                        <div className="p-2 text-xs text-muted-foreground text-center">등록된 일정이 없습니다.</div>
+                                    ) : (
+                                        travelPlans.map((plan: any) => (
+                                            <DropdownMenuItem
+                                                key={plan.id}
+                                                onClick={() => setEditTravelPlanId(plan.id)}
+                                                className={cn("flex flex-col items-start gap-0.5", editTravelPlanId === plan.id && "bg-accent")}
+                                            >
+                                                <div className="font-medium text-sm">{plan.title}</div>
+                                                <div className="text-[10px] text-muted-foreground">
+                                                    {plan.startDate ? format(new Date(plan.startDate), "MM.dd") : "-"}
+                                                    {plan.endDate ? ` ~ ${format(new Date(plan.endDate), "MM.dd")}` : ""}
+                                                </div>
+                                            </DropdownMenuItem>
+                                        ))
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
 
                         {/* Previews for Edit Mode */}
-                        {(editLocation || editDate) && (
+                        {(editLocation || editDate || editTravelPlanId) && (
                             <div className="flex flex-wrap gap-2 mt-2">
+                                {editTravelPlanId && (
+                                    <Badge variant="outline" className="gap-1 pl-2 text-primary border-primary/30">
+                                        <HugeiconsIcon icon={Airplane01Icon} className="h-3 w-3" />
+                                        {travelPlans.find(p => p.id === editTravelPlanId)?.title || travelPlan?.title || "연결된 일정"}
+                                        <button onClick={() => setEditTravelPlanId(undefined)} className="ml-1 hover:text-destructive">
+                                            <HugeiconsIcon icon={Cancel01Icon} className="h-3 w-3" />
+                                        </button>
+                                    </Badge>
+                                )}
                                 {editLocation && (
                                     <Badge variant="outline" className="gap-1 pl-2">
                                         <HugeiconsIcon icon={Location01Icon} className="h-3 w-3" />

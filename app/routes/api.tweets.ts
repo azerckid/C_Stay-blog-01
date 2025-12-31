@@ -501,7 +501,7 @@ export async function action({ request }: ActionFunctionArgs) {
                     ...locationUpdateData,
                     travelDate: travelDateStr ? new Date(travelDateStr) : undefined,
                     visibility: visibilityUpdate,
-                    travelPlanId: travelPlanId || undefined
+                    travelPlanId: travelPlanId === "" ? null : (travelPlanId || undefined)
                 },
                 include: { user: true, media: true, tags: { include: { travelTag: true } } }
             });

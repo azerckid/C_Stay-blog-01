@@ -1,11 +1,31 @@
 import { type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
-import { useLoaderData, Link } from "react-router";
+import { useLoaderData, Link, useFetcher } from "react-router";
+import { useState, useEffect } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Airplane01Icon, Calendar03Icon, Location01Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { DateTime } from "luxon";
 import { Button } from "~/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import { Textarea } from "~/components/ui/textarea";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "~/components/ui/select";
+import { toast } from "sonner";
+import { cn } from "~/lib/utils";
 
 export async function loader({ request }: LoaderFunctionArgs) {
     const session = await getSession(request);
@@ -19,7 +39,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         orderBy: { createdAt: "desc" },
         include: {
             _count: {
-                select: { tweets: true }
+                select: { tweets: true, items: true }
             }
         }
     });
@@ -29,19 +49,104 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function TravelPlansPage() {
     const { travelPlans, error } = useLoaderData<typeof loader>() as any;
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const fetcher = useFetcher();
+
+    useEffect(() => {
+        if (fetcher.state === "idle" && fetcher.data) {
+            if ((fetcher.data as any).travelPlan) {
+                toast.success("여행 계획이 생성되었습니다.");
+                setIsDialogOpen(false);
+            } else if ((fetcher.data as any).error) {
+                toast.error((fetcher.data as any).error);
+            }
+        }
+    }, [fetcher.state, fetcher.data]);
 
     if (error) {
         return <div className="p-4 text-destructive">{error}</div>;
     }
 
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        fetcher.submit(formData, { method: "POST", action: "/api/travel-plans" });
+    };
+
     return (
         <div className="flex flex-col min-h-screen">
             <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between">
                 <h1 className="text-xl font-bold font-heading">내 여행 일정</h1>
-                <Button variant="ghost" size="icon" className="rounded-full">
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setIsDialogOpen(true)}>
                     <HugeiconsIcon icon={PlusSignIcon} className="h-5 w-5" />
                 </Button>
             </header>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>새 여행 계획 만들기</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="title">여행 제목</Label>
+                            <Input
+                                id="title"
+                                name="title"
+                                placeholder="예: 2024 일본 오사카 여행"
+                                required
+                                autoFocus
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="description">설명</Label>
+                            <Textarea
+                                id="description"
+                                name="description"
+                                placeholder="어떤 여행인가요? (선택)"
+                                className="resize-none"
+                                rows={3}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="startDate">시작일</Label>
+                                <Input id="startDate" name="startDate" type="date" />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="endDate">종료일</Label>
+                                <Input id="endDate" name="endDate" type="date" />
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="status">상태</Label>
+                            <Select name="status" defaultValue="PLANNING">
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="PLANNING">준비 중</SelectItem>
+                                    <SelectItem value="ONGOING">여행 중</SelectItem>
+                                    <SelectItem value="COMPLETED">완료됨</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <DialogFooter className="mt-4">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setIsDialogOpen(false)}
+                                disabled={fetcher.state !== "idle"}
+                            >
+                                취소
+                            </Button>
+                            <Button type="submit" disabled={fetcher.state !== "idle"}>
+                                {fetcher.state !== "idle" ? "생성 중..." : "계획 생성"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             <main className="flex-1 p-4">
                 <div className="grid gap-4">
@@ -50,7 +155,7 @@ export default function TravelPlansPage() {
                             <HugeiconsIcon icon={Airplane01Icon} className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
                             <h3 className="text-lg font-bold mb-1">등록된 여행 일정이 없습니다</h3>
                             <p className="text-sm text-muted-foreground mb-6">첫 번째 여행 계획을 세워보세요!</p>
-                            <Button className="rounded-full">새 여행 계획 만들기</Button>
+                            <Button className="rounded-full" onClick={() => setIsDialogOpen(true)}>새 여행 계획 만들기</Button>
                         </div>
                     ) : (
                         travelPlans.map((plan: any) => (
@@ -87,7 +192,11 @@ export default function TravelPlansPage() {
                                     )}
                                     <div className="flex items-center gap-1.5">
                                         <HugeiconsIcon icon={Airplane01Icon} className="h-3.5 w-3.5" />
-                                        <span>연결된 트윗 {plan._count.tweets}개</span>
+                                        <span>일정 {plan._count.items}개</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <HugeiconsIcon icon={PlusSignIcon} className="h-3.5 w-3.5" />
+                                        <span>게시물 {plan._count.tweets}개</span>
                                     </div>
                                 </div>
                             </Link>
@@ -98,5 +207,3 @@ export default function TravelPlansPage() {
         </div>
     );
 }
-
-import { cn } from "~/lib/utils";
