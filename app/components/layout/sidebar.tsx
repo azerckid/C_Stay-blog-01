@@ -157,7 +157,7 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose, unreadCount = 0 }:
                             <DropdownMenuItem
                                 variant="destructive"
                                 className="p-3 cursor-pointer rounded-lg font-medium"
-                                onSelect={handleLogout}
+                                onClick={handleLogout}
                             >
                                 <HugeiconsIcon icon={NotificationIcon} className="mr-2 h-5 w-5 opacity-0" />
                                 <span className="truncate">@{session.user.email?.split("@")[0]} 계정에서 로그아웃</span>
