@@ -3,7 +3,7 @@ import { getSession } from "~/lib/auth-utils.server";
 import { useSession } from "~/lib/auth-client";
 import { useLoaderData, useFetcher, useSearchParams, Link } from "react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Settings01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { Settings01Icon, Search01Icon, Location01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { TweetCompose } from "~/components/tweet/tweet-compose";
 import { TweetCard } from "~/components/tweet/tweet-card";
 import { LoadingSpinner } from "~/components/ui/loading-spinner";
@@ -19,6 +19,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const cursor = url.searchParams.get("cursor"); // ISO String
   const feedType = url.searchParams.get("type") || "for-you"; // 'for-you' | 'following'
+  const locationFilter = url.searchParams.get("location"); // country or city name
   const limit = 20;
 
   let followingIds: string[] = [];
@@ -56,14 +57,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
   };
 
   // 탭별 추가 조건 적용
+  const andConditions: any[] = [visibilityFilter]; // 공개 범위 필터 적용
+
+  // 위치 필터 추가
+  if (locationFilter) {
+    andConditions.push({
+      OR: [
+        { country: { contains: locationFilter } },
+        { city: { contains: locationFilter } }
+      ]
+    });
+  }
+
   const whereCondition: any = {
     ...baseWhere,
-    AND: [visibilityFilter] // 공개 범위 필터 적용
+    AND: andConditions
   };
 
   if (feedType === "following") {
     if (!userId) {
-      return { session, tweets: [], nextCursor: null, feedType };
+      return { session, tweets: [], nextCursor: null, feedType, locationFilter };
     }
     whereCondition.userId = { in: [...followingIds, userId] };
   }
@@ -85,11 +98,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
   });
 
   // 2. 리트윗 조회 (삭제되지 않은 원본 트윗이 있는 경우만)
+  const retweetAndConditions: any[] = [visibilityFilter]; // 원본 트윗의 공개 범위 체크
+
+  // 위치 필터를 리트윗 쿼리에도 적용
+  if (locationFilter) {
+    retweetAndConditions.push({
+      OR: [
+        { country: { contains: locationFilter } },
+        { city: { contains: locationFilter } }
+      ]
+    });
+  }
+
   const retweetValues: any = {
     ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
     tweet: {
       deletedAt: null,
-      AND: [visibilityFilter] // 원본 트윗의 공개 범위 체크
+      AND: retweetAndConditions
     }
   };
 
@@ -236,6 +261,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     tweets: formattedTweets,
     nextCursor: hasNextPage ? nextCursor : null,
     feedType,
+    locationFilter,
   };
 }
 
@@ -248,13 +274,14 @@ export function meta({ }: MetaFunction) {
 
 
 export default function Home() {
-  const { session: serverSession, tweets: initialTweets, nextCursor: initialNextCursor, feedType } = useLoaderData<typeof loader>();
+  const { session: serverSession, tweets: initialTweets, nextCursor: initialNextCursor, feedType, locationFilter } = useLoaderData<typeof loader>();
   const { data: clientSession } = useSession();
   const fetcher = useFetcher<typeof loader>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [tweets, setTweets] = useState(initialTweets);
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor);
+  const [locationInput, setLocationInput] = useState(locationFilter || "");
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const isLoadingMore = fetcher.state !== "idle";
 
@@ -268,7 +295,8 @@ export default function Home() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && nextCursor) {
-          fetcher.load(`/?cursor=${nextCursor}&type=${currentTab}`);
+          const locationParam = locationFilter ? `&location=${encodeURIComponent(locationFilter)}` : "";
+          fetcher.load(`/?cursor=${nextCursor}&type=${currentTab}${locationParam}`);
         }
       },
       { threshold: 0.1 }
@@ -276,7 +304,7 @@ export default function Home() {
 
     observer.observe(loadMoreRef.current);
     return () => observer.disconnect();
-  }, [nextCursor, isLoadingMore, fetcher, currentTab]);
+  }, [nextCursor, isLoadingMore, fetcher, currentTab, locationFilter]);
 
   // 추가 트윗 로드 완료 시 상태 업데이트
   useEffect(() => {
@@ -291,11 +319,34 @@ export default function Home() {
     }
   }, [fetcher.data, fetcher.state]);
 
-  // 탭 변경 또는 초기 데이터 변경 시 상태 초기화
+  // 탭 변경 시 트윗 목록 초기화
   useEffect(() => {
     setTweets(initialTweets);
     setNextCursor(initialNextCursor);
-  }, [initialTweets, initialNextCursor, feedType]);
+  }, [initialTweets, initialNextCursor]);
+
+  const handleLocationFilter = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const location = formData.get("location") as string;
+
+    setSearchParams(prev => {
+      if (location) {
+        prev.set("location", location);
+      } else {
+        prev.delete("location");
+      }
+      return prev;
+    });
+  };
+
+  const clearLocationFilter = () => {
+    setLocationInput("");
+    setSearchParams(prev => {
+      prev.delete("location");
+      return prev;
+    });
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -348,6 +399,39 @@ export default function Home() {
             )}
           </div>
         </Link>
+      </div>
+
+      {/* Location Filter */}
+      <div className="border-b border-border px-4 py-3 bg-secondary/20">
+        <form onSubmit={handleLocationFilter} className="relative">
+          <HugeiconsIcon
+            icon={Location01Icon}
+            strokeWidth={2}
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+          />
+          <input
+            type="text"
+            name="location"
+            value={locationInput}
+            onChange={(e) => setLocationInput(e.target.value)}
+            placeholder="국가 또는 도시로 필터링 (예: 제주도, 일본, 파리)"
+            className="w-full bg-background py-2 pl-10 pr-10 rounded-full border border-border focus:border-primary outline-none transition-all text-sm"
+          />
+          {locationInput && (
+            <button
+              type="button"
+              onClick={clearLocationFilter}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-accent rounded-full transition-colors"
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={14} className="text-muted-foreground" />
+            </button>
+          )}
+        </form>
+        {locationFilter && (
+          <div className="mt-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{locationFilter}</span> 위치의 트윗만 표시 중
+          </div>
+        )}
       </div>
 
       {/* Tweet Composer (Only visible on For You or if desired) */}

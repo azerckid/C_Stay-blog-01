@@ -1,5 +1,5 @@
 import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, data, Link, useSearchParams } from "react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { auth } from "~/lib/auth";
 import { prisma } from "~/lib/prisma.server";
 import { FollowButton } from "~/components/user/follow-button";
@@ -12,10 +12,15 @@ import { cn } from "~/lib/utils";
 import { ProfileEditDialog } from "~/components/user/profile-edit-dialog";
 import { TravelMap } from "~/components/travel/travel-map";
 
+// Utility function to safely extract username from email
+const getUsername = (email: string | null | undefined): string => {
+    return email?.split("@")[0] || "unknown";
+};
+
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
     if (!data) return [{ title: "사용자 프로필 / STAYnC" }];
     return [
-        { title: `${data.profileUser.name} (@${data.profileUser.email.split("@")[0]}) / STAYnC` },
+        { title: `${data.profileUser.name} (@${getUsername(data.profileUser.email)}) / STAYnC` },
         { name: "description", content: data.profileUser.bio || "STAYnC 사용자 프로필" },
     ];
 };
@@ -153,7 +158,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             user: {
                 id: displayTweet.user.id,
                 name: displayTweet.user.name || "알 수 없음",
-                username: displayTweet.user.email.split("@")[0],
+                username: getUsername(displayTweet.user.email),
                 image: displayTweet.user.image || displayTweet.user.avatarUrl,
             },
             media: displayTweet.media.map((m: any) => ({
@@ -190,7 +195,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             } : undefined,
             retweetedBy: isRetweet ? {
                 name: tweet.user.name || "Unknown",
-                username: tweet.user.email.split("@")[0],
+                username: getUsername(tweet.user.email),
                 retweetedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() ?? undefined,
             } : undefined,
             travelDate: displayTweet.travelDate ? new Date(displayTweet.travelDate).toISOString() : null,
@@ -228,6 +233,7 @@ export default function UserProfile() {
         { id: "replies", label: "답글" },
         { id: "media", label: "미디어" },
         { id: "map", label: "여행 지도" },
+        { id: "stats", label: "여행 통계" },
         { id: "likes", label: "마음에 들어요" },
     ];
 
@@ -274,7 +280,7 @@ export default function UserProfile() {
                 {/* Profile Info */}
                 <div className="mb-6">
                     <h1 className="text-2xl font-bold">{profileUser.name}</h1>
-                    <p className="text-muted-foreground text-sm">@{profileUser.email.split("@")[0]}</p>
+                    <p className="text-muted-foreground text-sm">@{getUsername(profileUser.email)}</p>
 
                     <div className="mt-4 text-base whitespace-pre-wrap leading-relaxed">
                         {profileUser.bio || "소개가 없습니다."}
@@ -334,7 +340,7 @@ export default function UserProfile() {
                         </div>
                         <h3 className="text-xl font-bold mb-2">비공개 계정입니다</h3>
                         <p className="text-muted-foreground mb-6 text-sm">
-                            승인된 팔로워만 @{profileUser.email.split("@")[0]}님의 트윗과 프로필 정보를 볼 수 있습니다.
+                            승인된 팔로워만 @{getUsername(profileUser.email)}님의 트윗과 프로필 정보를 볼 수 있습니다.
                             <br />트윗을 보려면 팔로우 요청을 보내세요.
                         </p>
                     </div>
@@ -342,6 +348,8 @@ export default function UserProfile() {
                     <div className="p-4">
                         <TravelMap tweets={tweets} className="h-[600px]" />
                     </div>
+                ) : tab === "stats" ? (
+                    <TravelStatsTab userId={profileUser.id} />
                 ) : tweets.length === 0 ? (
                     <div className="py-12 text-center text-muted-foreground">
                         {tab === 'tweets' && "아직 작성한 트윗이 없습니다."}
@@ -357,16 +365,16 @@ export default function UserProfile() {
                             user={{
                                 id: tweet.user.id,
                                 name: tweet.user.name || "Unknown",
-                                username: tweet.user.email.split("@")[0],
+                                username: getUsername(tweet.user.email),
                                 image: tweet.user.image || tweet.user.avatarUrl
                             }}
                             content={tweet.content}
                             createdAt={DateTime.fromJSDate(new Date(tweet.createdAt)).setLocale("ko").toRelative() || ""}
                             fullCreatedAt={DateTime.fromJSDate(new Date(tweet.createdAt)).setLocale("ko").toLocaleString(DateTime.DATETIME_MED)}
                             stats={{
-                                replies: tweet._count.replies,
-                                retweets: tweet._count.retweets,
-                                likes: tweet._count.likes,
+                                replies: tweet._count?.replies || 0,
+                                retweets: tweet._count?.retweets || 0,
+                                likes: tweet._count?.likes || 0,
                                 views: "0"
                             }}
                             isLiked={tweet.isLiked}
@@ -383,11 +391,13 @@ export default function UserProfile() {
                                 latitude: tweet.latitude,
                                 longitude: tweet.longitude,
                             } : undefined}
-                            tags={tweet.tags ? tweet.tags.map((t: any) => ({
-                                id: t.travelTag.id,
-                                name: t.travelTag.name,
-                                slug: t.travelTag.slug
-                            })) : []}
+                            tags={tweet.tags ? tweet.tags
+                                .filter((t: any) => t.travelTag)
+                                .map((t: any) => ({
+                                    id: t.travelTag.id,
+                                    name: t.travelTag.name,
+                                    slug: t.travelTag.slug
+                                })) : []}
                             travelDate={tweet.travelDate}
                         />
                     ))
@@ -408,6 +418,127 @@ export default function UserProfile() {
                         isPrivate: profileUser.isPrivate,
                     }}
                 />
+            )}
+        </div>
+    );
+}
+
+// Travel Statistics Tab Component
+function TravelStatsTab({ userId }: { userId: string }) {
+    const [stats, setStats] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch(`/api/travel-stats/${userId}`)
+            .then(res => res.json())
+            .then(data => {
+                setStats(data.stats);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to load travel stats:", err);
+                setLoading(false);
+            });
+    }, [userId]);
+
+    if (loading) {
+        return (
+            <div className="p-8 text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
+                <p className="mt-4 text-muted-foreground">여행 통계를 불러오는 중...</p>
+            </div>
+        );
+    }
+
+    if (!stats) {
+        return (
+            <div className="p-8 text-center text-muted-foreground">
+                여행 통계를 불러올 수 없습니다.
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-4 space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-secondary/50 rounded-lg p-4 text-center">
+                    <div className="text-3xl font-bold text-primary">{stats.totalCountries}</div>
+                    <div className="text-sm text-muted-foreground mt-1">방문 국가</div>
+                </div>
+                <div className="bg-secondary/50 rounded-lg p-4 text-center">
+                    <div className="text-3xl font-bold text-primary">{stats.totalCities}</div>
+                    <div className="text-sm text-muted-foreground mt-1">방문 도시</div>
+                </div>
+                <div className="bg-secondary/50 rounded-lg p-4 text-center">
+                    <div className="text-3xl font-bold text-primary">{stats.totalTravelDays}</div>
+                    <div className="text-sm text-muted-foreground mt-1">여행 일수</div>
+                </div>
+                <div className="bg-secondary/50 rounded-lg p-4 text-center">
+                    <div className="text-3xl font-bold text-primary">{stats.totalTravelPosts}</div>
+                    <div className="text-sm text-muted-foreground mt-1">여행 게시물</div>
+                </div>
+            </div>
+
+            {/* Top Countries */}
+            {stats.topCountries && stats.topCountries.length > 0 && (
+                <div className="bg-secondary/30 rounded-lg p-4">
+                    <h3 className="font-bold text-lg mb-4">가장 많이 방문한 국가</h3>
+                    <div className="space-y-3">
+                        {stats.topCountries.map((item: any, index: number) => (
+                            <div key={item.country} className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-2xl font-bold text-muted-foreground">#{index + 1}</span>
+                                    <span className="font-medium">{item.country}</span>
+                                </div>
+                                <span className="text-primary font-bold">{item.count}회</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Yearly Stats */}
+            {stats.yearlyStats && stats.yearlyStats.length > 0 && (
+                <div className="bg-secondary/30 rounded-lg p-4">
+                    <h3 className="font-bold text-lg mb-4">연도별 여행 기록</h3>
+                    <div className="space-y-2">
+                        {stats.yearlyStats.map((item: any) => (
+                            <div key={item.year} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                                <span className="font-medium">{item.year}년</span>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-32 bg-secondary rounded-full h-2 overflow-hidden">
+                                        <div
+                                            className="bg-primary h-full rounded-full transition-all"
+                                            style={{ width: `${Math.min(100, (item.count / Math.max(...stats.yearlyStats.map((s: any) => s.count))) * 100)}%` }}
+                                        />
+                                    </div>
+                                    <span className="text-sm font-bold text-primary w-12 text-right">{item.count}개</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* All Countries List */}
+            {stats.countries && stats.countries.length > 0 && (
+                <div className="bg-secondary/30 rounded-lg p-4">
+                    <h3 className="font-bold text-lg mb-4">방문한 모든 국가 ({stats.countries.length})</h3>
+                    <div className="flex flex-wrap gap-2">
+                        {stats.countries.map((country: string) => (
+                            <span key={country} className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                                {country}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {stats.totalTravelPosts === 0 && (
+                <div className="py-12 text-center text-muted-foreground">
+                    아직 여행 기록이 없습니다.
+                </div>
             )}
         </div>
     );

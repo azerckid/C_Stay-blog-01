@@ -29,6 +29,7 @@ export default [
     route("api/travel-plans/:id", "routes/api.travel-plans.$id.ts"),
     route("api/travel-plan-items", "routes/api.travel-plan-items.ts"),
     route("api/travel-plan-items/:id", "routes/api.travel-plan-items.$id.ts"),
+    route("api/travel-stats/:userId", "routes/api.travel-stats.$userId.ts"),
     route("api/ai-travel-log", "routes/api.ai-travel-log.ts"),
     route("auth/google/callback", "routes/api.auth.ts", { id: "google-callback" }),
     route("auth/kakao/callback", "routes/api.auth.ts", { id: "kakao-callback" }),
