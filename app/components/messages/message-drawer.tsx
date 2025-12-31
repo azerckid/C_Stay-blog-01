@@ -109,6 +109,9 @@ export function MessageDrawer() {
     const messages = selectedConvId ? MOCK_MESSAGES[selectedConvId] || [] : [];
     const otherParticipant = selectedConv?.participants[0]?.user;
 
+    // Filter out group chats for now as per requirement
+    const filteredConversations = MOCK_CONVERSATIONS.filter((c) => !c.isGroup);
+
     return (
         <div
             className={cn(
@@ -216,41 +219,56 @@ export function MessageDrawer() {
                         {/* Conversation List */}
                         <div className="flex-1 overflow-y-auto">
                             {selectedTab === "all" ? (
-                                MOCK_CONVERSATIONS.map((conv) => {
-                                    const user = conv.participants[0].user;
-                                    return (
-                                        <div
-                                            key={conv.id}
-                                            onClick={() => handleConvClick(conv.id)}
-                                            className="px-4 py-3 flex gap-3 hover:bg-accent/50 cursor-pointer transition-colors border-b border-border/50"
-                                        >
-                                            <div className="h-12 w-12 rounded-full bg-muted border border-border overflow-hidden shrink-0">
-                                                {user.image && <img src={user.image} alt={user.name} className="h-full w-full object-cover" />}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between gap-1">
-                                                    <div className="flex items-center gap-1 min-w-0">
-                                                        <span className="font-bold truncate">{user.name}</span>
-                                                        {user.isPrivate && (
-                                                            <HugeiconsIcon icon={LockIcon} size={14} className="text-muted-foreground shrink-0" />
-                                                        )}
-                                                        <span className="text-sm text-muted-foreground truncate">@{user.email.split("@")[0]}</span>
-                                                        <span className="text-sm text-muted-foreground shrink-0">· 21주</span>
-                                                    </div>
-                                                    {conv.unreadCount > 0 && (
-                                                        <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                                                    )}
+                                filteredConversations.length > 0 ? (
+                                    filteredConversations.map((conv) => {
+                                        const user = conv.participants[0].user;
+                                        return (
+                                            <div
+                                                key={conv.id}
+                                                onClick={() => handleConvClick(conv.id)}
+                                                className="px-4 py-3 flex gap-3 hover:bg-accent/50 cursor-pointer transition-colors border-b border-border/50"
+                                            >
+                                                <div className="h-12 w-12 rounded-full bg-muted border border-border overflow-hidden shrink-0">
+                                                    {user.image && <img src={user.image} alt={user.name} className="h-full w-full object-cover" />}
                                                 </div>
-                                                <p className={cn(
-                                                    "text-sm truncate",
-                                                    conv.unreadCount > 0 ? "text-foreground font-bold" : "text-muted-foreground"
-                                                )}>
-                                                    {conv.lastMessage?.content}
-                                                </p>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-1">
+                                                        <div className="flex items-center gap-1 min-w-0">
+                                                            <span className="font-bold truncate">{user.name}</span>
+                                                            {user.isPrivate && (
+                                                                <HugeiconsIcon icon={LockIcon} size={14} className="text-muted-foreground shrink-0" />
+                                                            )}
+                                                            <span className="text-sm text-muted-foreground truncate">@{user.email.split("@")[0]}</span>
+                                                            <span className="text-sm text-muted-foreground shrink-0">· 21주</span>
+                                                        </div>
+                                                        {conv.unreadCount > 0 && (
+                                                            <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                                                        )}
+                                                    </div>
+                                                    <p className={cn(
+                                                        "text-sm truncate",
+                                                        conv.unreadCount > 0 ? "text-foreground font-bold" : "text-muted-foreground"
+                                                    )}>
+                                                        {conv.lastMessage?.content}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })
+                                        );
+                                    })
+                                ) : (
+                                    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-300 h-full">
+                                        <div className="text-3xl font-extrabold mb-2">쪽지가 없네요</div>
+                                        <p className="text-muted-foreground text-[15px] mb-8 max-w-[280px] break-keep leading-relaxed">
+                                            하고 싶은 말이 있다면, 지금 바로 쪽지를 보내보세요!
+                                        </p>
+                                        <button
+                                            onClick={() => setIsNewMessageModalOpen(true)}
+                                            className="px-8 py-3 bg-primary text-primary-foreground font-bold text-[15px] rounded-full hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-primary/20"
+                                        >
+                                            쪽지 쓰기
+                                        </button>
+                                    </div>
+                                )
                             ) : (
                                 <div className="p-8 text-center flex flex-col items-center gap-2">
                                     <p className="text-sm text-muted-foreground">요청받은 메시지가 없습니다.</p>
@@ -436,8 +454,9 @@ export function MessageDrawer() {
                             </div>
                         </div>
                     </div>
-                )}
-            </div>
+                )
+                }
+            </div >
 
             <NewMessageModal
                 isOpen={isNewMessageModalOpen}
@@ -449,6 +468,6 @@ export function MessageDrawer() {
                 isOpen={isSettingsModalOpen}
                 onClose={() => setIsSettingsModalOpen(false)}
             />
-        </div>
+        </div >
     );
 }
