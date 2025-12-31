@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
-import { Link, useLoaderData, useNavigate } from "react-router";
+import { Link, useLoaderData, useNavigate, redirect, data, useLocation } from "react-router";
 import { prisma } from "~/lib/prisma.server";
+import { useEffect, useState } from "react";
 import { DateTime } from "luxon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
@@ -8,6 +9,7 @@ import { TweetCard } from "~/components/tweet/tweet-card";
 import { TweetCompose } from "~/components/tweet/tweet-compose";
 import { getSession } from "~/lib/auth-utils.server";
 import { Map, AdvancedMarker } from "@vis.gl/react-google-maps";
+import { cn } from "~/lib/utils";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
     const tweetId = params.tweetId;
@@ -21,6 +23,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     const tweet = await prisma.tweet.findUnique({
         where: { id: tweetId },
         include: {
+            // ... (keep existing includes, we need to check parentId first)
             user: true,
             _count: {
                 select: {
@@ -32,17 +35,17 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             likes: userId ? { where: { userId }, select: { userId: true } } : false,
             retweets: userId ? { where: { userId }, select: { userId: true } } : false,
             bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
-            media: true, // Include media for main tweet
-            tags: { include: { travelTag: true } }, // Include tags
+            media: true,
+            tags: { include: { travelTag: true } },
             replies: {
                 where: { deletedAt: null },
                 orderBy: [
-                    { likes: { _count: "desc" } }, // 인기순 (좋아요 많은 순)
-                    { createdAt: "desc" } // 최신순
+                    { likes: { _count: "desc" } },
+                    { createdAt: "desc" }
                 ],
                 include: {
                     user: true,
-                    media: true, // Include media for replies
+                    media: true,
                     _count: { select: { likes: true, replies: true, retweets: true } },
                     likes: userId ? { where: { userId }, select: { userId: true } } : false,
                     retweets: userId ? { where: { userId }, select: { userId: true } } : false,
@@ -57,10 +60,18 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         throw new Response("트윗을 찾을 수 없습니다.", { status: 404 });
     }
 
-    // Soft Delete: 삭제된 트윗은 접근 불가
+    // Soft Delete Check
     if (tweet.deletedAt) {
         throw new Response("삭제된 트윗입니다.", { status: 404 });
     }
+
+    // [New Logic] If this is a reply, redirect to parent tweet with hash
+    if (tweet.parentId) {
+        // 부모 트윗 페이지로 리다이렉트 (해당 답글로 스크롤되도록 hash 추가)
+        return redirect(`/tweet/${tweet.parentId}#${tweet.id}`);
+    }
+
+    // ... (rest of logic)
 
     const formatTweetData = (t: any) => ({
         id: t.id,
@@ -107,7 +118,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     const formattedTweet = formatTweetData(tweet);
     const formattedReplies = tweet.replies.map(formatTweetData);
 
-    return { tweet: formattedTweet, replies: formattedReplies };
+    return data({ tweet: formattedTweet, replies: formattedReplies });
 }
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
@@ -123,6 +134,21 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
 export default function TweetDetail() {
     const { tweet, replies } = useLoaderData<typeof loader>();
     const navigate = useNavigate();
+    const location = useLocation();
+    const [highlightId, setHighlightId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (location.hash) {
+            const id = location.hash.replace("#", "");
+            setHighlightId(id);
+            const element = document.getElementById(id);
+            if (element) {
+                setTimeout(() => {
+                    element.scrollIntoView({ behavior: "smooth", block: "center" });
+                }, 100);
+            }
+        }
+    }, [location.hash, replies]);
 
     return (
         <div className="flex flex-col min-h-screen">
@@ -170,7 +196,16 @@ export default function TweetDetail() {
                         </div>
                     ) : (
                         replies.map((reply: any) => (
-                            <TweetCard key={reply.id} {...reply} />
+                            <div
+                                key={reply.id}
+                                id={reply.id}
+                                className={cn(
+                                    "transition-colors duration-1000",
+                                    highlightId === reply.id ? "bg-primary/10" : ""
+                                )}
+                            >
+                                <TweetCard {...reply} />
+                            </div>
                         ))
                     )}
                 </div>
