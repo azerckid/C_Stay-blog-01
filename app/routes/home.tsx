@@ -171,7 +171,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
           name: t.travelTag.name,
           slug: t.travelTag.slug
         })),
-        retweetedBy: undefined
+        retweetedBy: undefined,
+        visibility: tweet.visibility as "PUBLIC" | "FOLLOWERS" | "PRIVATE"
       };
     } else {
       // 리트윗인 경우
@@ -218,7 +219,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
           name: retweetData.user.name || "알 수 없음",
           username: retweetData.user.email.split("@")[0],
           retweetedAt: DateTime.fromJSDate(retweetData.createdAt).setLocale("ko").toRelative() ?? undefined
-        }
+        },
+        visibility: tweet.visibility as "PUBLIC" | "FOLLOWERS" | "PRIVATE"
       };
     }
   });

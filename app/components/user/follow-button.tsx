@@ -43,15 +43,22 @@ export function FollowButton({
 
     if (fetcher.formData) {
         const intent = fetcher.formData.get("intent");
-        if (intent === "follow") {
-            // We optimize to 'following' by default, or keep 'pending' logic if we knew.
-            // Since we don't know target privacy, we might show 'Following' temporarily 
-            // and then it switches to 'Pending' when server replies. This is acceptable.
-            isFollowing = true;
-            isPending = false;
-        } else if (intent === "unfollow") {
-            isFollowing = false;
-            isPending = false;
+        if (intent === "toggle") {
+            // Optimistic Toggle Logic
+            if (isFollowing) {
+                // Was following -> Unfollow
+                isFollowing = false;
+                isPending = false;
+            } else if (isPending) {
+                // Was pending -> Cancel request
+                isFollowing = false;
+                isPending = false;
+            } else {
+                // Not following/pending -> Follow
+                // We assume 'following' optimistically. Server will correct to 'pending' if private.
+                isFollowing = true;
+                isPending = false;
+            }
         }
     }
 
@@ -61,11 +68,8 @@ export function FollowButton({
         e.preventDefault();
         e.stopPropagation();
 
-        // If pending, intent is unfollow (cancel request)
-        const intent = (isFollowing || isPending) ? "unfollow" : "follow";
-
         fetcher.submit(
-            { targetUserId, intent },
+            { targetUserId, intent: "toggle" },
             { method: "post", action: "/api/follows" }
         );
     };

@@ -9,7 +9,8 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     DropdownMenuLabel,
-    DropdownMenuSeparator
+    DropdownMenuSeparator,
+    DropdownMenuGroup
 } from "~/components/ui/dropdown-menu";
 import {
     Image01Icon,
@@ -213,33 +214,35 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                                 </span>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="w-[200px]">
-                                <DropdownMenuLabel>공개 범위 설정</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    onClick={() => setVisibility("PUBLIC")}
-                                    disabled={(session?.user as any)?.isPrivate} // 비공개 계정은 전체 공개 불가
-                                    className="gap-2"
-                                >
-                                    <HugeiconsIcon icon={Globe02Icon} className="w-4 h-4 text-primary" />
-                                    <div className="flex flex-col">
-                                        <span className="font-medium">모든 사람</span>
-                                        <span className="text-[10px] text-muted-foreground">누구나 볼 수 있습니다</span>
-                                    </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setVisibility("FOLLOWERS")} className="gap-2">
-                                    <HugeiconsIcon icon={UserGroupIcon} className="w-4 h-4 text-green-500" />
-                                    <div className="flex flex-col">
-                                        <span className="font-medium">팔로워</span>
-                                        <span className="text-[10px] text-muted-foreground">나를 팔로우하는 사람만</span>
-                                    </div>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setVisibility("PRIVATE")} className="gap-2">
-                                    <HugeiconsIcon icon={LockKeyIcon} className="w-4 h-4 text-muted-foreground" />
-                                    <div className="flex flex-col">
-                                        <span className="font-medium">나만 보기</span>
-                                        <span className="text-[10px] text-muted-foreground">나에게만 보입니다</span>
-                                    </div>
-                                </DropdownMenuItem>
+                                <DropdownMenuGroup>
+                                    <DropdownMenuLabel>공개 범위 설정</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        onClick={() => setVisibility("PUBLIC")}
+                                        disabled={(session?.user as any)?.isPrivate} // 비공개 계정은 전체 공개 불가
+                                        className="gap-2"
+                                    >
+                                        <HugeiconsIcon icon={Globe02Icon} className="w-4 h-4 text-primary" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">모든 사람</span>
+                                            <span className="text-[10px] text-muted-foreground">누구나 볼 수 있습니다</span>
+                                        </div>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setVisibility("FOLLOWERS")} className="gap-2">
+                                        <HugeiconsIcon icon={UserGroupIcon} className="w-4 h-4 text-green-500" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">팔로워</span>
+                                            <span className="text-[10px] text-muted-foreground">나를 팔로우하는 사람만</span>
+                                        </div>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setVisibility("PRIVATE")} className="gap-2">
+                                        <HugeiconsIcon icon={LockKeyIcon} className="w-4 h-4 text-muted-foreground" />
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">나만 보기</span>
+                                            <span className="text-[10px] text-muted-foreground">나에게만 보입니다</span>
+                                        </div>
+                                    </DropdownMenuItem>
+                                </DropdownMenuGroup>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>

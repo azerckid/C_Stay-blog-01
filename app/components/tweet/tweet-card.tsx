@@ -14,7 +14,11 @@ import {
     PlusSignIcon,
     Calendar03Icon,
     Location01Icon,
-    Bookmark02Icon
+    Bookmark02Icon,
+    Globe02Icon,
+    UserGroupIcon,
+    LockKeyIcon,
+    ArrowDown01Icon
 } from "@hugeicons/core-free-icons";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -29,6 +33,9 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuGroup,
+    DropdownMenuLabel,
+    DropdownMenuSeparator
 } from "~/components/ui/dropdown-menu";
 import { LocationPickerDialog, type LocationData } from "~/components/maps/location-picker-dialog";
 import { Calendar } from "~/components/ui/calendar";
@@ -86,10 +93,11 @@ interface TweetCardProps {
         slug: string;
     }[];
     travelDate?: string | null;
+    visibility?: "PUBLIC" | "FOLLOWERS" | "PRIVATE";
 }
 import { useNavigate, Link } from "react-router";
 
-export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, isBookmarked = false, media, retweetedBy, location, tags, travelDate }: TweetCardProps) {
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, isBookmarked = false, media, retweetedBy, location, tags, travelDate, visibility = "PUBLIC" }: TweetCardProps) {
     const navigate = useNavigate();
     const { data: session } = useSession();
     // ... (기존 hook 및 state 유지)
@@ -113,6 +121,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     const [editLocation, setEditLocation] = useState<LocationData | null>(null);
     const [locationPickerOpen, setLocationPickerOpen] = useState(false);
     const [editDate, setEditDate] = useState<Date | undefined>(undefined);
+    const [editVisibility, setEditVisibility] = useState<"PUBLIC" | "FOLLOWERS" | "PRIVATE">(visibility);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 낙관적 UI를 위한 로컬 상태
@@ -156,6 +165,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             setEditLocation(null);
         }
         setEditDate(travelDate ? new Date(travelDate) : undefined);
+        setEditVisibility(visibility); // Initialize visibility state
     };
     const handleUpdate = () => { /* ... */
         if (!id) return;
@@ -178,6 +188,8 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         if (editDate) {
             payload.travelDate = editDate.toISOString();
         }
+
+        payload.visibility = editVisibility;
 
         // Always send tags to ensure they are synced (empty array clears tags)
         payload.tags = JSON.stringify(editTags);
@@ -324,6 +336,20 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         }
     }, [fetcher.state, fetcher.data]);
 
+    // Helper for visibility display
+    const getVisibilityConfig = (v: "PUBLIC" | "FOLLOWERS" | "PRIVATE") => {
+        switch (v) {
+            case "PUBLIC":
+                return { label: "모든 사람", icon: Globe02Icon, color: "text-primary" };
+            case "FOLLOWERS":
+                return { label: "팔로워", icon: UserGroupIcon, color: "text-green-500" };
+            case "PRIVATE":
+                return { label: "나만 보기", icon: LockKeyIcon, color: "text-muted-foreground" };
+        }
+    };
+
+    const activeEditVisibility = getVisibilityConfig(editVisibility);
+
     const handleClick = () => { /* ... */
         if (id) {
             navigate(`/tweet/${id}`);
@@ -389,6 +415,16 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                         >
                             · {createdAt}
                         </span>
+                        {/* Visibility Icon */}
+                        {visibility && visibility !== "PUBLIC" && (
+                            <span className="text-muted-foreground flex-shrink-0 ml-1" title={visibility === "FOLLOWERS" ? "팔로워에게만 공개" : "나만 보기"}>
+                                {visibility === "FOLLOWERS" ? (
+                                    <HugeiconsIcon icon={UserGroupIcon} className="h-3.5 w-3.5" />
+                                ) : visibility === "PRIVATE" ? (
+                                    <HugeiconsIcon icon={LockKeyIcon} className="h-3.5 w-3.5" />
+                                ) : null}
+                            </span>
+                        )}
                     </div>
                     {isOwner && (
                         <div onClick={(e) => e.stopPropagation()}>
@@ -602,6 +638,50 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                             className="min-h-[150px] text-lg resize-none border-none focus-visible:ring-0 p-0"
                             placeholder="무슨 일이 일어나고 있나요?"
                         />
+
+                        {/* Edit Visibility Selector */}
+                        <div className="flex mb-2">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger className="outline-none">
+                                    <span className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-border text-xs font-semibold text-primary hover:bg-primary/5 transition-colors cursor-pointer">
+                                        <HugeiconsIcon icon={activeEditVisibility.icon} className={cn("w-3.5 h-3.5", activeEditVisibility.color)} />
+                                        <span>{activeEditVisibility.label}에게 표시</span>
+                                        <HugeiconsIcon icon={ArrowDown01Icon} className="w-3 h-3" />
+                                    </span>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-[200px]">
+                                    <DropdownMenuGroup>
+                                        <DropdownMenuLabel>공개 범위 설정</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            onClick={() => setEditVisibility("PUBLIC")}
+                                            className="gap-2"
+                                            disabled={(session?.user as any)?.isPrivate}
+                                        >
+                                            <HugeiconsIcon icon={Globe02Icon} className="w-4 h-4 text-primary" />
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">모든 사람</span>
+                                                <span className="text-[10px] text-muted-foreground">누구나 볼 수 있습니다</span>
+                                            </div>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setEditVisibility("FOLLOWERS")} className="gap-2">
+                                            <HugeiconsIcon icon={UserGroupIcon} className="w-4 h-4 text-green-500" />
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">팔로워</span>
+                                                <span className="text-[10px] text-muted-foreground">나를 팔로우하는 사람만</span>
+                                            </div>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setEditVisibility("PRIVATE")} className="gap-2">
+                                            <HugeiconsIcon icon={LockKeyIcon} className="w-4 h-4 text-muted-foreground" />
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">나만 보기</span>
+                                                <span className="text-[10px] text-muted-foreground">나에게만 보입니다</span>
+                                            </div>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuGroup>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
 
                         {/* Edit Tags */}
                         <div className="flex flex-wrap gap-2 mt-3">

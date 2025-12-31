@@ -476,7 +476,12 @@ export async function action({ request }: ActionFunctionArgs) {
             }
 
             const travelDateStr = formData.get("travelDate") as string;
-            // travelDateStr가 있으면 날짜 업데이트
+            const visibilityStr = formData.get("visibility") as string;
+
+            let visibilityUpdate: "PUBLIC" | "FOLLOWERS" | "PRIVATE" | undefined = undefined;
+            if (visibilityStr && ["PUBLIC", "FOLLOWERS", "PRIVATE"].includes(visibilityStr)) {
+                visibilityUpdate = visibilityStr as "PUBLIC" | "FOLLOWERS" | "PRIVATE";
+            }
 
             const updatedTweet = await prisma.tweet.update({
                 where: { id: tweetId },
@@ -484,7 +489,8 @@ export async function action({ request }: ActionFunctionArgs) {
                     content,
                     tags: tagsUpdateData,
                     ...locationUpdateData,
-                    travelDate: travelDateStr ? new Date(travelDateStr) : undefined
+                    travelDate: travelDateStr ? new Date(travelDateStr) : undefined,
+                    visibility: visibilityUpdate
                 },
                 include: { user: true, media: true, tags: { include: { travelTag: true } } }
             });
