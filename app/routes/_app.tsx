@@ -6,7 +6,20 @@ import { prisma } from "~/lib/prisma.server";
 import { getSession } from "~/lib/auth-utils.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const popularTags = await prisma.travelTag.findMany({
+        where: {
+            tweetTags: {
+                some: {
+                    tweet: {
+                        createdAt: { gte: sevenDaysAgo },
+                        deletedAt: null
+                    }
+                }
+            }
+        },
         orderBy: {
             tweetTags: {
                 _count: "desc"
@@ -20,6 +33,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
         }
     });
 
+    // If no recent tags, fallback to overall popular ones
+    let resultTags = popularTags;
+    if (popularTags.length === 0) {
+        resultTags = await prisma.travelTag.findMany({
+            orderBy: {
+                tweetTags: {
+                    _count: "desc"
+                }
+            },
+            take: 5,
+            include: {
+                _count: {
+                    select: { tweetTags: true }
+                }
+            }
+        });
+    }
+
     const session = await getSession(request);
     const userId = session?.user?.id;
 
@@ -27,7 +58,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         where: { recipientId: userId, isRead: false }
     }) : 0;
 
-    return { popularTags, unreadCount };
+    return { popularTags: resultTags, unreadCount };
 }
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";

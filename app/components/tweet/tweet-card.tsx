@@ -19,7 +19,8 @@ import {
     UserGroupIcon,
     LockKeyIcon,
     ArrowDown01Icon,
-    Airplane01Icon
+    Airplane01Icon,
+    Folder01Icon as FolderIcon
 } from "@hugeicons/core-free-icons";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -344,6 +345,9 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
     }, [retweetFetcher.state, retweetFetcher.data]);
 
     // 북마크 API 응답 처리
+    const [collections, setCollections] = useState<any[]>([]);
+    const collectionsFetcher = useFetcher();
+
     useEffect(() => {
         if (bookmarkFetcher.state === "idle" && bookmarkFetcher.data) {
             const result = bookmarkFetcher.data as any;
@@ -353,6 +357,31 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
             }
         }
     }, [bookmarkFetcher.state, bookmarkFetcher.data]);
+
+    // Fetch collections when needed (e.g., when bookmarking or opening dropdown)
+    const fetchCollections = () => {
+        if (collections.length === 0 && session) {
+            collectionsFetcher.load("/api/bookmarks/collections");
+        }
+    };
+
+    useEffect(() => {
+        if (collectionsFetcher.data && (collectionsFetcher.data as any).collections) {
+            setCollections((collectionsFetcher.data as any).collections);
+        }
+    }, [collectionsFetcher.data]);
+
+    const handleCollectionSelect = (collectionId: string) => {
+        if (!id) return;
+        const formData = new FormData();
+        formData.append("_action", "update-bookmark");
+        formData.append("tweetId", id);
+        formData.append("collectionId", collectionId);
+        bookmarkFetcher.submit(formData, { method: "POST", action: "/api/bookmarks/collections" });
+
+        if (!bookmarked) setBookmarked(true);
+        toast.success(collectionId === "none" ? "북마크에 저장되었습니다." : "폴더에 저장되었습니다.");
+    };
 
     useEffect(() => { /* ... */
         if (fetcher.state === "idle" && fetcher.data) {
@@ -638,27 +667,64 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                         <span className="text-xs">{stats?.views ?? "0"}</span>
                     </button>
 
-                    <button
-                        onClick={handleBookmark}
-                        className={cn(
-                            "flex items-center group/action transition-colors pr-3",
-                            bookmarked ? "text-primary" : "hover:text-primary"
-                        )}
-                    >
-                        <div className={cn(
-                            "p-2 rounded-full transition-colors",
-                            bookmarked ? "bg-primary/10" : "group-hover/action:bg-primary/10"
-                        )}>
-                            <HugeiconsIcon
-                                icon={Bookmark02Icon}
-                                strokeWidth={bookmarked ? 0 : 2}
-                                className={cn(
-                                    "h-4.5 w-4.5",
-                                    bookmarked && "fill-current"
-                                )}
-                            />
-                        </div>
-                    </button>
+                    <DropdownMenu onOpenChange={(open) => open && fetchCollections()}>
+                        <DropdownMenuTrigger
+                            render={
+                                <button
+                                    onClick={(e) => e.stopPropagation()}
+                                    className={cn(
+                                        "flex items-center group/action transition-colors pr-3 outline-none",
+                                        bookmarked ? "text-primary" : "hover:text-primary"
+                                    )}
+                                >
+                                    <div className={cn(
+                                        "p-2 rounded-full transition-colors",
+                                        bookmarked ? "bg-primary/10" : "group-hover/action:bg-primary/10"
+                                    )}>
+                                        <HugeiconsIcon
+                                            icon={Bookmark02Icon}
+                                            strokeWidth={bookmarked ? 0 : 2}
+                                            className={cn(
+                                                "h-4.5 w-4.5",
+                                                bookmarked && "fill-current"
+                                            )}
+                                        />
+                                    </div>
+                                </button>
+                            }
+                        />
+                        <DropdownMenuContent onClick={(e) => e.stopPropagation()} align="start">
+                            <DropdownMenuGroup>
+                                <DropdownMenuLabel>북마크 옵션</DropdownMenuLabel>
+                                <DropdownMenuItem onClick={handleBookmark}>
+                                    {bookmarked ? "북마크 취소" : "기본 폴더에 저장"}
+                                </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                            {collections.length > 0 && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuGroup>
+                                        <DropdownMenuLabel>폴더 이동/저장</DropdownMenuLabel>
+                                        {collections.map((col) => (
+                                            <DropdownMenuItem
+                                                key={col.id}
+                                                onClick={() => handleCollectionSelect(col.id)}
+                                                className="gap-2"
+                                            >
+                                                <HugeiconsIcon icon={FolderIcon} size={14} className="text-muted-foreground" />
+                                                {col.name}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuGroup>
+                                </>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => navigate("/bookmarks")} className="gap-2">
+                                <HugeiconsIcon icon={Bookmark02Icon} size={14} className="text-muted-foreground" />
+                                모든 북마크 보기
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
 
                     <button className="flex items-center group/action hover:text-primary transition-colors">
                         <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">

@@ -31,11 +31,12 @@ model User {
   tweets              Tweet[]
   likes               Like[]
   retweets            Retweet[]
-  followedBy          Follow[]       @relation("following")
-  following           Follow[]       @relation("follower")
+  followedBy          Follow[]             @relation("following")
+  following           Follow[]             @relation("follower")
   bookmarks           Bookmark[]
-  notifications       Notification[] @relation("ReceivedNotifications")
-  issuedNotifications Notification[] @relation("IssuedNotifications")
+  bookmarkCollections BookmarkCollection[]
+  notifications       Notification[]       @relation("ReceivedNotifications")
+  issuedNotifications Notification[]       @relation("IssuedNotifications")
   travelPlans         TravelPlan[]
 
   @@map("User")
@@ -206,18 +207,36 @@ model Follow {
 }
 
 model Bookmark {
-  id        String   @id @default(cuid())
-  userId    String
-  tweetId   String
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  tweetId      String
+  collectionId String?
+  createdAt    DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweet      Tweet               @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  collection BookmarkCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
 
   @@unique([userId, tweetId])
   @@index([userId])
   @@index([tweetId])
+  @@index([collectionId])
   @@map("Bookmark")
+}
+
+model BookmarkCollection {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookmarks Bookmark[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("BookmarkCollection")
 }
 
 model TravelTag {

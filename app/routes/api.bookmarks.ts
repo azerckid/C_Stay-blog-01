@@ -5,6 +5,7 @@ import { z } from "zod";
 
 const bookmarkActionSchema = z.object({
     tweetId: z.string().min(1, "트윗 ID가 필요합니다."),
+    collectionId: z.string().optional().nullable(),
 });
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -20,14 +21,15 @@ export async function action({ request }: ActionFunctionArgs) {
     try {
         const formData = await request.formData();
         const tweetId = formData.get("tweetId");
+        const collectionId = formData.get("collectionId");
 
-        const result = bookmarkActionSchema.safeParse({ tweetId });
+        const result = bookmarkActionSchema.safeParse({ tweetId, collectionId });
 
         if (!result.success) {
             return data({ error: result.error.issues[0].message }, { status: 400 });
         }
 
-        const { tweetId: targetTweetId } = result.data;
+        const { tweetId: targetTweetId, collectionId: targetCollectionId } = result.data;
         const userId = session.user.id;
 
         // 트윗 존재 여부 확인
@@ -68,6 +70,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 data: {
                     userId: userId,
                     tweetId: targetTweetId,
+                    collectionId: targetCollectionId === "none" ? null : targetCollectionId,
                 },
             });
             bookmarked = true;

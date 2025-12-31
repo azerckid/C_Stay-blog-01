@@ -19,6 +19,7 @@ export default [
     route("api/likes", "routes/api.likes.ts"),
     route("api/retweets", "routes/api.retweets.ts"),
     route("api/bookmarks", "routes/api.bookmarks.ts"),
+    route("api/bookmarks/collections", "routes/api.bookmarks.collections.ts"),
     route("api/notifications", "routes/api.notifications.ts"),
     route("api/follows", "routes/api.follows.ts"),
     route("api/upload", "routes/api.upload.ts"),
