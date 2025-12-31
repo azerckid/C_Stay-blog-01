@@ -57,7 +57,7 @@ export const MOCK_CONVERSATIONS: DMConversation[] = [
             id: "m1",
             conversationId: "c1",
             senderId: "u1",
-            content: "is it alright to send a business inquiry...",
+            content: "안녕하세요! 비즈니스 문의 관련해서 쪽지 드렸습니다.",
             isRead: false,
             createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7 * 21).toISOString(),
             updatedAt: "",
@@ -104,6 +104,26 @@ export const MOCK_CONVERSATIONS: DMConversation[] = [
 ];
 
 export const MOCK_MESSAGES: Record<string, DirectMessage[]> = {
+    c1: [
+        {
+            id: "m1-1",
+            conversationId: "c1",
+            senderId: "u1",
+            content: "안녕하세요! 비즈니스 문의 관련해서 쪽지 드렸습니다.",
+            isRead: false,
+            createdAt: "2023-07-05T10:00:00Z",
+            updatedAt: "",
+        },
+        {
+            id: "m1-2",
+            conversationId: "c1",
+            senderId: "me",
+            content: "네, 안녕하세요! 어떤 문의이신가요?",
+            isRead: true,
+            createdAt: "2023-07-05T10:05:00Z",
+            updatedAt: "",
+        },
+    ],
     c2: [
         {
             id: "m2-1",

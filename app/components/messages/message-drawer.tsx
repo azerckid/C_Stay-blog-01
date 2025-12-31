@@ -13,6 +13,7 @@ import {
     AiViewIcon,
     TickDouble01Icon,
     LockIcon,
+    SmileIcon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import { MOCK_CONVERSATIONS, MOCK_MESSAGES, MOCK_USERS } from "~/lib/mock-messages";
@@ -29,7 +30,11 @@ export function MessageDrawer() {
     const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
     const [isNewMessageModalOpen, setIsNewMessageModalOpen] = useState(false);
     const [selectedMedia, setSelectedMedia] = useState<{ file: File; preview: string } | null>(null);
+    const [reactions, setReactions] = useState<Record<string, string>>({});
+    const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const commonEmojis = ["❤️", "😂", "😲", "😢", "🔥", "👍", "🙏"];
 
     useEffect(() => {
         const handleToggle = () => {
@@ -269,23 +274,85 @@ export function MessageDrawer() {
                                 </div>
 
                                 {messages.map((m) => {
-                                    const isMine = m.senderId === "me"; // In real app, check against session
+                                    const isMine = m.senderId === "me";
                                     return (
                                         <div key={m.id} className={cn(
-                                            "flex flex-col",
+                                            "flex flex-col group relative",
                                             isMine ? "items-end" : "items-start"
                                         )}>
-                                            <div className={cn(
-                                                "max-w-[85%] px-4 py-2.5 rounded-2xl text-[15px]",
-                                                isMine
-                                                    ? "bg-primary text-white rounded-br-none"
-                                                    : "bg-secondary text-foreground rounded-bl-none"
-                                            )}>
-                                                {m.content}
+                                            <div className="flex items-center gap-2 max-w-[75%] sm:max-w-[65%] relative group/bubble">
+                                                {isMine && !activeReactionPicker && (
+                                                    <button
+                                                        onClick={() => setActiveReactionPicker(m.id)}
+                                                        className="opacity-0 group-hover/bubble:opacity-100 p-2 hover:bg-accent rounded-full text-muted-foreground transition-all duration-200"
+                                                    >
+                                                        <HugeiconsIcon icon={SmileIcon} size={18} />
+                                                    </button>
+                                                )}
+
+                                                <div className={cn(
+                                                    "px-4 py-3 rounded-2xl text-[15px] leading-normal relative",
+                                                    isMine
+                                                        ? "bg-primary text-white rounded-br-none"
+                                                        : "bg-secondary text-foreground rounded-bl-none"
+                                                )}>
+                                                    {m.content}
+
+                                                    {/* Reaction Badge */}
+                                                    {reactions[m.id] && (
+                                                        <div className={cn(
+                                                            "absolute -bottom-3 px-2 py-0.5 bg-background border border-border rounded-full text-[14px] shadow-sm select-none",
+                                                            isMine ? "right-1" : "left-1"
+                                                        )}>
+                                                            {reactions[m.id]}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Emoji Picker Popover */}
+                                                    {activeReactionPicker === m.id && (
+                                                        <div className={cn(
+                                                            "absolute bottom-full mb-2 z-[20] bg-background border border-border rounded-full shadow-2xl flex gap-1 p-1.5 animate-in zoom-in-95 duration-150",
+                                                            isMine ? "right-0" : "left-0"
+                                                        )}>
+                                                            {commonEmojis.map(emoji => (
+                                                                <button
+                                                                    key={emoji}
+                                                                    onClick={() => {
+                                                                        setReactions(prev => ({ ...prev, [m.id]: emoji }));
+                                                                        setActiveReactionPicker(null);
+                                                                    }}
+                                                                    className="hover:scale-125 transition-transform px-1.5 text-lg"
+                                                                >
+                                                                    {emoji}
+                                                                </button>
+                                                            ))}
+                                                            <button
+                                                                onClick={() => setActiveReactionPicker(null)}
+                                                                className="ml-1 p-1.5 hover:bg-accent rounded-full"
+                                                            >
+                                                                <HugeiconsIcon icon={Cancel01Icon} size={14} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {!isMine && !activeReactionPicker && (
+                                                    <button
+                                                        onClick={() => setActiveReactionPicker(m.id)}
+                                                        className="opacity-0 group-hover/bubble:opacity-100 p-2 hover:bg-accent rounded-full text-muted-foreground transition-all duration-200"
+                                                    >
+                                                        <HugeiconsIcon icon={SmileIcon} size={18} />
+                                                    </button>
+                                                )}
                                             </div>
-                                            <span className="text-[11px] text-muted-foreground mt-1 px-1">
-                                                {format(new Date(m.createdAt), 'aaa h:mm', { locale: ko })}
-                                            </span>
+                                            <div className="mt-1 px-1 flex items-center gap-1">
+                                                <span className="text-[11px] text-muted-foreground">
+                                                    {format(new Date(m.createdAt), 'aaa h:mm', { locale: ko })}
+                                                </span>
+                                                {isMine && m.isRead && (
+                                                    <HugeiconsIcon icon={SentIcon} size={12} className="text-primary" />
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}
