@@ -5,6 +5,7 @@ import {
     Search01Icon as SearchIcon,
     Notification01Icon as NotificationIcon,
     Mail01Icon as MailIcon,
+    Airplane01Icon
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 
@@ -12,6 +13,7 @@ const MOBILE_NAV_ITEMS = [
     { label: "홈", href: "/", icon: Home01Icon },
     { label: "탐색", href: "/search", icon: SearchIcon },
     { label: "알림", href: "/notifications", icon: NotificationIcon },
+    { label: "여행 일정", href: "/travel-plans", icon: Airplane01Icon },
     { label: "쪽지", href: "/messages", icon: MailIcon },
 ];
 

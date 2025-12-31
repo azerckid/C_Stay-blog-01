@@ -18,7 +18,8 @@ import {
     Globe02Icon,
     UserGroupIcon,
     LockKeyIcon,
-    ArrowDown01Icon
+    ArrowDown01Icon,
+    Airplane01Icon
 } from "@hugeicons/core-free-icons";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -94,10 +95,14 @@ interface TweetCardProps {
     }[];
     travelDate?: string | null;
     visibility?: "PUBLIC" | "FOLLOWERS" | "PRIVATE";
+    travelPlan?: {
+        id: string;
+        title: string;
+    };
 }
 import { useNavigate, Link } from "react-router";
 
-export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, isBookmarked = false, media, retweetedBy, location, tags, travelDate, visibility = "PUBLIC" }: TweetCardProps) {
+export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, isLiked = false, isRetweeted = false, isBookmarked = false, media, retweetedBy, location, tags, travelDate, visibility = "PUBLIC", travelPlan }: TweetCardProps) {
     const navigate = useNavigate();
     const { data: session } = useSession();
     // ... (기존 hook 및 state 유지)
@@ -452,9 +457,15 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                 </p>
 
                 {/* Location Pill */}
-                {/* Metadata: Location, Date, Tags */}
-                {(location || travelDate || (tags && tags.length > 0)) && (
+                {/* Metadata: Location, Date, Tags, Travel Plan */}
+                {(location || travelDate || (tags && tags.length > 0) || travelPlan) && (
                     <div className="flex flex-wrap gap-3 mt-2 items-center">
+                        {travelPlan && (
+                            <div className="flex items-center gap-1 text-primary text-sm font-bold w-fit bg-primary/5 px-2 py-0.5 rounded-full">
+                                <HugeiconsIcon icon={Airplane01Icon} className="h-3.5 w-3.5" />
+                                <span>{travelPlan.title}</span>
+                            </div>
+                        )}
                         {location && (
                             <div className="flex items-center gap-1 text-muted-foreground text-sm font-medium w-fit hover:underline cursor-pointer hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); /* TODO: Show map */ }}>
                                 <HugeiconsIcon icon={Location01Icon} className="h-4 w-4" />

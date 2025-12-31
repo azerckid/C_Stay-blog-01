@@ -22,7 +22,8 @@ import {
     Globe02Icon,
     UserGroupIcon,
     LockKeyIcon,
-    ArrowDown01Icon
+    ArrowDown01Icon,
+    Airplane01Icon
 } from "@hugeicons/core-free-icons";
 import { useSession } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
@@ -61,8 +62,13 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
     // Visibility State
     const [visibility, setVisibility] = useState<Visibility>("PUBLIC");
 
+    // Travel Plan State
+    const [travelPlanId, setTravelPlanId] = useState<string | null>(null);
+    const [travelPlans, setTravelPlans] = useState<any[]>([]);
+
     const fetcher = useFetcher(); // Tweet submission
     const uploadFetcher = useFetcher(); // File upload
+    const travelPlansFetcher = useFetcher(); // Fetch travel plans
     const revalidator = useRevalidator();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +81,20 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
         }
     }, [(session?.user as any)?.isPrivate]);
 
+    // Fetch Travel Plans on mount
+    useEffect(() => {
+        if (session) {
+            travelPlansFetcher.load("/api/travel-plans");
+        }
+    }, [session]);
+
+    // Update travelPlans state when fetched
+    useEffect(() => {
+        if (travelPlansFetcher.data && (travelPlansFetcher.data as any).travelPlans) {
+            setTravelPlans((travelPlansFetcher.data as any).travelPlans);
+        }
+    }, [travelPlansFetcher.data]);
+
     // Tweet Submission Result
     useEffect(() => {
         if (fetcher.state === "idle" && fetcher.data) {
@@ -86,6 +106,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                 setLocation(null); // Clear location
                 setTags([]); // Clear tags
                 setDate(undefined);
+                setTravelPlanId(null); // Clear travel plan
                 // Reset visibility
                 if ((session?.user as any)?.isPrivate) {
                     setVisibility("FOLLOWERS");
@@ -135,6 +156,9 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
         }
         if (date) {
             formData.append("travelDate", date.toISOString());
+        }
+        if (travelPlanId) {
+            formData.append("travelPlanId", travelPlanId);
         }
 
         fetcher.submit(formData, {
@@ -305,6 +329,24 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                     </div>
                 )}
 
+                {/* Travel Plan Preview */}
+                {travelPlanId && (
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-full flex items-center gap-2 w-fit">
+                            <HugeiconsIcon icon={Airplane01Icon} className="w-4 h-4" />
+                            <span className="text-sm font-bold">
+                                {travelPlans.find(p => p.id === travelPlanId)?.title || "여행 계획"}
+                            </span>
+                            <button
+                                onClick={() => setTravelPlanId(null)}
+                                className="hover:bg-primary/20 rounded-full p-0.5"
+                            >
+                                <HugeiconsIcon icon={Cancel01Icon} className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Attachments Preview */}
                 {attachments.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto py-2">
@@ -395,6 +437,33 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                                 />
                             </PopoverContent>
                         </Popover>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger
+                                title="여행 계획"
+                                disabled={isSubmitting || travelPlans.length === 0}
+                                className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50", travelPlanId && "text-primary")}
+                            >
+                                <HugeiconsIcon icon={Airplane01Icon} strokeWidth={2} className="h-5 w-5" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-[200px]">
+                                <DropdownMenuGroup>
+                                    <DropdownMenuLabel>내 여행 계획</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {travelPlans.map((plan: any) => (
+                                        <DropdownMenuItem key={plan.id} onClick={() => setTravelPlanId(plan.id)}>
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">{plan.title}</span>
+                                                {plan.startDate && (
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        {format(new Date(plan.startDate), "yyyy.MM.dd")} ~
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
 
                     <button

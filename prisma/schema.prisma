@@ -36,6 +36,7 @@ model User {
   bookmarks           Bookmark[]
   notifications       Notification[] @relation("ReceivedNotifications")
   issuedNotifications Notification[] @relation("IssuedNotifications")
+  travelPlans         TravelPlan[]
 
   @@map("User")
 }
@@ -111,7 +112,8 @@ model Tweet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  travelPlan TravelPlan? @relation(fields: [travelPlanId], references: [id], onDelete: SetNull)
 
   // 답글 관계
   parent  Tweet?  @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
@@ -276,4 +278,43 @@ model Notification {
   @@index([issuerId])
   @@index([tweetId])
   @@map("Notification")
+}
+
+model TravelPlan {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String    @default("PLANNING") // PLANNING, ONGOING, COMPLETED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items  TravelPlanItem[]
+  tweets Tweet[]
+
+  @@index([userId])
+  @@map("TravelPlan")
+}
+
+model TravelPlanItem {
+  id           String    @id @default(cuid())
+  travelPlanId String
+  title        String
+  description  String?
+  date         DateTime?
+  time         String?
+  locationName String?
+  latitude     Float?
+  longitude    Float?
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  travelPlan TravelPlan @relation(fields: [travelPlanId], references: [id], onDelete: Cascade)
+
+  @@index([travelPlanId])
+  @@map("TravelPlanItem")
 }

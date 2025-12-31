@@ -15,7 +15,8 @@ const createTweetSchema = z.object({
     parentId: z.string().optional().nullable(),
     media: z.string().optional().nullable(), // JSON string of attachments
     visibility: z.enum(["PUBLIC", "FOLLOWERS", "PRIVATE"]).optional(),
-    tags: z.string().optional().nullable(), // JSON string of tags
+    tags: z.string().optional().nullable(),
+    travelPlanId: z.string().optional().nullable(),
 });
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -56,7 +57,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
                     include: {
                         travelTag: true
                     }
-                }
+                },
+                travelPlan: true,
             }
         });
 
@@ -100,6 +102,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 name: t.travelTag.name,
                 slug: t.travelTag.slug
             })),
+            travelPlan: tweet.travelPlan ? {
+                id: tweet.travelPlan.id,
+                title: tweet.travelPlan.title,
+            } : undefined,
             travelDate: tweet.travelDate ? new Date(tweet.travelDate).toISOString() : null
         }));
 
@@ -128,6 +134,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 parentId: formData.get("parentId") || undefined,
                 media: formData.get("media") || undefined,
                 tags: formData.get("tags") || undefined,
+                travelPlanId: formData.get("travelPlanId") || undefined,
             };
 
             const validatedData = createTweetSchema.parse(payload);
@@ -234,7 +241,8 @@ export async function action({ request }: ActionFunctionArgs) {
                     },
                     tags: {
                         create: tagConnectData
-                    }
+                    },
+                    travelPlanId: validatedData.travelPlanId
                 },
                 include: {
                     user: true,
@@ -483,6 +491,8 @@ export async function action({ request }: ActionFunctionArgs) {
                 visibilityUpdate = visibilityStr as "PUBLIC" | "FOLLOWERS" | "PRIVATE";
             }
 
+            const travelPlanId = formData.get("travelPlanId") as string;
+
             const updatedTweet = await prisma.tweet.update({
                 where: { id: tweetId },
                 data: {
@@ -490,7 +500,8 @@ export async function action({ request }: ActionFunctionArgs) {
                     tags: tagsUpdateData,
                     ...locationUpdateData,
                     travelDate: travelDateStr ? new Date(travelDateStr) : undefined,
-                    visibility: visibilityUpdate
+                    visibility: visibilityUpdate,
+                    travelPlanId: travelPlanId || undefined
                 },
                 include: { user: true, media: true, tags: { include: { travelTag: true } } }
             });

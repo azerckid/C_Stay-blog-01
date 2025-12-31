@@ -8,7 +8,8 @@ import {
     Bookmark02Icon,
     UserIcon,
     MoreHorizontalIcon,
-    AiViewIcon
+    AiViewIcon,
+    Airplane01Icon
 } from "@hugeicons/core-free-icons";
 import { useSession, signOut } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
     { label: "홈", href: "/", icon: Home01Icon },
     { label: "탐색", href: "/search", icon: SearchIcon },
     { label: "알림", href: "/notifications", icon: NotificationIcon },
+    { label: "여행 일정", href: "/travel-plans", icon: Airplane01Icon },
     { label: "쪽지", href: "/messages", icon: MailIcon },
     { label: "북마크", href: "/bookmarks", icon: Bookmark02Icon },
     { label: "프로필", href: "/profile", icon: UserIcon },
