@@ -1054,18 +1054,20 @@ X(Twitter)와 동일한 메시지 시스템 구현 (UI 우선 개발).
 ### [UI First] 2단계: 고급 UI 컴포넌트 및 인터랙션 개발
 
 1단계에서 구축한 기본 프레임워크 위에 실제 X와 동일한 사용감을 제공하는 상세 기능을 추가합니다.
-
-- [ ] **새 쪽지 작성 모달 (New Message Modal)**
-  - [ ] 사용자 검색 UI (실시간 필터링) 및 '추천 사용자' 리스트
-  - [ ] 다중 선택 시 상단 '사용자 칩(Chip)' UI 및 제거 기능
-  - [ ] 검색 결과가 없을 때의 Empty State UI
-- [ ] **메시징 상세 기능 및 인터랙션**
-  - [ ] **미디어 첨부**: 쪽지 입력바 내 사진/동영상 첨부 버튼 및 업로드 전 미리보기/제거 UI
-  - [ ] **메시지 반응(Reaction)**: 메시지 버블 롱프레스/호버 시 나타나는 이모지 선택 팝업
-  - [ ] **상태 인디케이터**: 메시지 전송 중/성공/실패 애니메이션 및 '읽음 확인(Double Check)' UI
-  - [ ] **타이핑 인디케이터**: 상대방이 입력 중일 때 나타나는 '...' 애니메이션 버블
-- [ ] **드로어 확장 및 모바일 최적화**
-  - [ ] Floating Drawer의 '전체 화면' 전환 기능 (확장 버튼 클릭 시)
+- [x] **새 쪽지 작성 모달 (`NewMessageModal`)**
+    - [x] 사용자 검색 및 다중 선택 UI (Chips 형태)
+    - [x] 모달 등장 애니메이션 및 드로어 연동
+    - [x] 검색 결과 Empty State 및 스켈레톤 UI
+- [x] **미디어 첨부 UI**
+    - [x] 파일 선택(이미지/동영상) 및 미리보기(Preview) 구현
+    - [x] 첨부 파일 삭제 및 전송 버튼 상태 동기화
+- [x] **메시지 반응(Reaction) & 인터랙션**
+    - [x] 메시지 버블 Hover 시 이모지 피커 노출
+    - [x] 반응 선택 시 메시지에 배지(Badge) 형태로 표시
+    - [x] 읽음 확인(Read Receipts) 체크 아이콘 로직 및 스타일링
+    - [x] 타이핑 인디케이터(Typing Indicator) 애니메이션 및 시뮬레이션
+- [x] **전체 화면 전환 및 라우팅 연동**
+    - [x] `MessageDrawer`와 `/messages` 라우트 간 UI/UX 일관성 확보
   - [ ] 모바일 환경에서의 스와이프 뒤로가기 제스처 대응
 
 ---
@@ -1073,39 +1075,45 @@ X(Twitter)와 동일한 메시지 시스템 구현 (UI 우선 개발).
 ### [UI First] 3단계: 설정 UI 및 엣지 케이스 처리
 
 - [ ] **쪽지 설정 및 프라이버시 (X 스타일)**
-  - [ ] **쪽지 설정 드로어**: 쪽지 요청 허용 여부(모두/팔로우/없음), 읽음 확인 설정 토글
+  - [x] **쪽지 설정 드로어**: 쪽지 요청 허용 여부(모두/팔로우/없음), 읽음 확인 설정 토글
   - [ ] **대화방 상세 설정**: 알림 끄기, 대화 삭제, 사용자 차단/신고 메뉴 UI
 - [ ] **엣지 케이스 및 완성도 제고**
-  - [ ] **Empty States**: 메시지나 대화 목록이 전혀 없을 때의 감각적인 X 스타일 일러스트 및 안내 문구
+  - [x] **Empty States**: 메시지나 대화 목록이 전혀 없을 때의 감각적인 X 스타일 일러스트 및 안내 문구
   - [ ] **Skeleton Loading**: 데이터 페칭 시 나타나는 정교한 스켈레톤 UI (대화 목록, 프로필 정보 등)
   - [ ] **Error Handling**: 전송 실패 시 '다시 시도' 버튼 및 토스트 메시지 UI
 
 ---
 
-### 4단계: 백엔드 연동 및 실시간성 구현
+### 4단계: 백엔드 연동 및 실시간성 구현 (완료)
 
 UI 개발이 완료된 후, 실제 데이터를 처리하기 위한 로직을 연결합니다.
 
-- [ ] **데이터베이스 마이그레이션 (Prisma)**
-  - 상기 설계된 `DirectMessage`, `DMConversation`, `DMParticipant` 테이블 생성
-  - 기존 `User` 테이블에 메시지 프라이버시 필드 확장
-- [ ] **상세 API 엔드포인트 구현 (Remix Loader/Action)**
-  - **대화 관리**:
-    - `GET /api/messages/conversations?tab=all|requests`: 리스트 조회
-    - `POST /api/messages/conversations`: 1:1 또는 그룹 대화 생성
-    - `PATCH /api/messages/conversations/:id/accept`: 요청 수락 로직
-  - **메시지 관리**:
-    - `POST /api/messages`: 메시지 전송 및 상대방 알림 트리거
-    - `GET /api/messages/conversations/:id?cursor=...`: 무한 스크롤 페이징
-    - `PATCH /api/messages/:id/read`: 읽음 상태 업데이트
-- [ ] **실시간 메시지 수신 및 동기화 (Pusher 도입)**
-  - **수신 전략**: **Pusher Channels**를 활용하여 즉시성 확보 (Polling 대신 WebSocket 기반 Pusher 사용)
-  - **구동 방식**: 
-    - 서버: 메시지 발송 시 `pusher.trigger()`로 해당 대화방에 이벤트 전송
-    - 클라이언트: `pusher-js`를 활용하여 채널 구독 후 즉시 메시지 UI 업데이트
-  - **읽음 처리**: 상대방이 메시지를 읽었을 때도 Pusher 이벤트를 통해 '1' 제거 또는 UI 업데이트 반영
-- [ ] **알림 시스템 통합**
-  - 앱 전체 영역에서 Pusher 공통 채널을 구독하여, 어느 페이지에 있든 새 메시지 알림을 실시간으로 수신 및 배지(Badge) 업데이트
+- [x] **데이터베이스 마이그레이션 (Prisma)**
+  - [x] `DirectMessage`, `DMConversation`, `DMParticipant` 테이블 생성
+  - [x] User 모델에 관계 필드 추가 (기존 컬럼 변경 없음)
+  - [x] `prisma db push`로 스키마 동기화 완료
+- [x] **상세 API 엔드포인트 구현 (React Router Loader/Action)**
+  - [x] **대화 관리**:
+    - [x] `GET /api/messages/conversations?tab=all|requests`: 리스트 조회 (전체/요청 탭 지원)
+    - [x] `POST /api/messages/conversations`: 1:1 또는 그룹 대화 생성 (중복 방지 로직 포함)
+    - [x] `PATCH /api/messages/conversations/:id/accept`: 요청 수락 로직
+  - [x] **메시지 관리**:
+    - [x] `POST /api/messages`: 메시지 전송 및 대화 자동 수락
+    - [x] `GET /api/messages/conversations/:id?cursor=...`: 커서 기반 무한 스크롤 페이징
+    - [x] `PATCH /api/messages/:id/read`: 읽음 상태 업데이트
+  - [x] 모든 API에 인증 및 권한 검사, Zod 스키마 검증 구현
+- [x] **실시간 메시지 수신 및 동기화 (Pusher 도입)**
+  - [x] **서버 측**: Pusher 서버 설정 파일 생성 (`app/lib/pusher.server.ts`)
+  - [x] **이벤트 트리거 구현**:
+    - [x] 메시지 전송 시: `new-message`, `new-message-notification` 이벤트
+    - [x] 메시지 읽음 처리 시: `message-read` 이벤트
+    - [x] 대화 생성 시: `new-conversation` 이벤트
+    - [x] 대화 수락 시: `conversation-accepted` 이벤트
+  - [x] 채널명 생성 헬퍼 함수 (`getConversationChannelId`, `getUserChannelId`)
+  - [x] Pusher 오류 발생 시에도 메인 작업은 성공하도록 에러 핸들링
+  - [ ] **클라이언트 측**: `pusher-js`를 활용한 채널 구독 및 UI 업데이트 (UI 컴포넌트 단계에서 구현 예정)
+- [ ] **알림 시스템 통합 (클라이언트 측 구현 예정)**
+  - [ ] 앱 전체 영역에서 Pusher 공통 채널을 구독하여, 어느 페이지에 있든 새 메시지 알림을 실시간으로 수신 및 배지(Badge) 업데이트
 
 ---
 
