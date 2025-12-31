@@ -12,17 +12,4 @@ export const pusher = new Pusher({
     useTLS: true,
 });
 
-/**
- * 채널명 생성 헬퍼 함수
- */
-export function getConversationChannelId(conversationId: string): string {
-    return `conversation-${conversationId}`;
-}
-
-/**
- * 사용자별 개인 채널명 생성 헬퍼 함수
- */
-export function getUserChannelId(userId: string): string {
-    return `user-${userId}`;
-}
 

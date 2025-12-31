@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { useFetcher, useRouteLoaderData } from "react-router";
+import Pusher from "pusher-js";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     Settings01Icon,
@@ -35,9 +37,177 @@ export function MessageDrawer() {
     const [reactions, setReactions] = useState<Record<string, string>>({});
     const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null);
     const [isTyping, setIsTyping] = useState(false);
+    const fetcher = useFetcher<any>();
+    const messagesFetcher = useFetcher<any>();
+    const createConvFetcher = useFetcher<any>();
+    const rootData = useRouteLoaderData("root") as any;
+    const user = rootData?.user;
+    const ENV = rootData?.ENV;
+
+    const [conversations, setConversations] = useState<any[]>([]);
+    const [messages, setMessages] = useState<any[]>([]); // Current conversation messages
+    const [newMessage, setNewMessage] = useState("");
+    const [pusherClient, setPusherClient] = useState<Pusher | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const selectedTabRef = useRef(selectedTab);
+
+    useEffect(() => {
+        selectedTabRef.current = selectedTab;
+    }, [selectedTab]);
 
     const commonEmojis = ["❤️", "😂", "😲", "😢", "🔥", "👍", "🙏"];
+
+    // Load conversations when drawer opens or tab changes
+    useEffect(() => {
+        if (state === "expanded-list") {
+            fetcher.load(`/api/messages/conversations?tab=${selectedTab}`);
+        }
+    }, [state, selectedTab]);
+
+    // Update conversations from fetcher
+    useEffect(() => {
+        if (fetcher.data?.conversations) {
+            setConversations((prev) => {
+                const newConvs = fetcher.data.conversations;
+                // If we have a selected conversation that is NOT in the new list (e.g. newly created but not yet in backend list query),
+                // we should keep it temporarily to avoid profile flickering.
+                if (selectedConvId) {
+                    const currentSelected = Array.isArray(prev) ? prev.find(c => c.id === selectedConvId) : null;
+                    const existsInNew = newConvs.find((c: any) => c.id === selectedConvId);
+
+                    if (currentSelected && !existsInNew) {
+                        return [currentSelected, ...newConvs];
+                    }
+                }
+                return newConvs;
+            });
+        }
+    }, [fetcher.data, selectedConvId]);
+
+    // Load messages when a conversation is selected
+    useEffect(() => {
+        if (selectedConvId) {
+            messagesFetcher.load(`/api/messages/conversations/${selectedConvId}`);
+        } else {
+            setMessages([]);
+        }
+    }, [selectedConvId]);
+
+    // Update messages from fetcher (Initial Load or Revalidation)
+    useEffect(() => {
+        if (messagesFetcher.data?.messages) {
+            setMessages(messagesFetcher.data.messages);
+        } else if (messagesFetcher.data?.success && messagesFetcher.data?.message) {
+            // Handle successful send response: Replace optimistic message
+            const sentMessage = messagesFetcher.data.message;
+            setMessages(prev => prev.map(m => (m.isOptimistic && m.content === sentMessage.content) ? sentMessage : m));
+        }
+    }, [messagesFetcher.data]);
+
+    // Initialize Pusher & User Channel
+    useEffect(() => {
+        if (!user || !ENV?.PUSHER_KEY) return;
+
+        const pusher = new Pusher(ENV.PUSHER_KEY, {
+            cluster: ENV.PUSHER_CLUSTER || "ap3",
+        });
+        setPusherClient(pusher);
+
+        const channelName = `user-${user.id}`;
+        const channel = pusher.subscribe(channelName);
+
+        // Global notifications (update list)
+        const handleListUpdate = () => {
+            fetcher.load(`/api/messages/conversations?tab=${selectedTabRef.current}`);
+        };
+
+        channel.bind("new-message-notification", handleListUpdate);
+        channel.bind("new-conversation", handleListUpdate);
+        channel.bind("conversation-accepted-notification", handleListUpdate);
+
+        return () => {
+            channel.unbind_all();
+            pusher.unsubscribe(channelName);
+            pusher.disconnect();
+        };
+    }, [user, ENV]);
+
+    // Conversation Channel Subscription
+    useEffect(() => {
+        if (!pusherClient || !selectedConvId) return;
+
+        const channelName = `conversation-${selectedConvId}`;
+        const channel = pusherClient.subscribe(channelName);
+
+        channel.bind("new-message", (data: any) => {
+            if (data.conversationId === selectedConvId) {
+                setMessages((prev) => [...prev, data.message]);
+            }
+        });
+
+        channel.bind("conversation-accepted", (data: any) => {
+            // Refresh conversation list to show accepted status if needed
+            fetcher.load(`/api/messages/conversations?tab=${selectedTabRef.current}`);
+        });
+
+        return () => {
+            channel.unbind_all();
+            pusherClient.unsubscribe(channelName);
+        };
+    }, [pusherClient, selectedConvId]);
+
+    // Handle new conversation creation/finding result
+    useEffect(() => {
+        if (createConvFetcher.data?.success && createConvFetcher.data?.conversation) {
+            const conv = createConvFetcher.data.conversation;
+            // Add to conversation list if not exists (though Pusher should handle this, optimistic/immediate feedback is good)
+            setConversations((prev) => {
+                const current = Array.isArray(prev) ? prev : [];
+                if (current.find((c: any) => c.id === conv.id)) return current;
+                return [conv, ...current];
+            });
+            handleConvClick(conv.id);
+            setIsNewMessageModalOpen(false);
+        }
+    }, [createConvFetcher.data]);
+
+    const handleSendMessage = () => {
+        if (!newMessage.trim() || !selectedConvId) return;
+
+        const content = newMessage;
+        const tempId = `temp-${Date.now()}`;
+
+        // Optimistic UI Update
+        const optimisticMessage = {
+            id: tempId,
+            content,
+            senderId: user?.id || "me",
+            sender: {
+                id: user?.id,
+                name: user?.name,
+                username: user?.email?.split("@")[0],
+                image: user?.image || user?.avatarUrl,
+            },
+            isRead: false,
+            createdAt: new Date().toISOString(),
+            isOptimistic: true
+        };
+
+        setMessages(prev => [...prev, optimisticMessage]);
+        setNewMessage("");
+
+        messagesFetcher.submit(
+            { conversationId: selectedConvId, content },
+            { method: "post", action: "/api/messages" }
+        );
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
 
     useEffect(() => {
         const handleToggle = () => {
@@ -75,18 +245,10 @@ export function MessageDrawer() {
     };
 
     const handleNewMessageSelect = (userId: string) => {
-        // Find existing conversation with this user or just navigate
-        const existingConv = MOCK_CONVERSATIONS.find(c =>
-            !c.isGroup && c.participants.some(p => p.userId === userId)
+        createConvFetcher.submit(
+            { userIds: [userId] },
+            { method: "post", action: "/api/messages/conversations", encType: "application/json" }
         );
-        if (existingConv) {
-            handleConvClick(existingConv.id);
-        } else {
-            // In mock mode, if no conv exists, we just select the user
-            // In a real app, this would create a new conversation
-            alert("기존 대화가 없어 새로 생성하는 시뮬레이션입니다.");
-            setState("expanded-chat");
-        }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,12 +267,15 @@ export function MessageDrawer() {
         }
     };
 
-    const selectedConv = MOCK_CONVERSATIONS.find((c) => c.id === selectedConvId);
-    const messages = selectedConvId ? MOCK_MESSAGES[selectedConvId] || [] : [];
-    const otherParticipant = selectedConv?.participants[0]?.user;
+    const safeConversations = Array.isArray(conversations) ? conversations : [];
+    const selectedConv = safeConversations.find((c) => c.id === selectedConvId);
 
-    // Filter out group chats for now as per requirement
-    const filteredConversations = MOCK_CONVERSATIONS.filter((c) => !c.isGroup);
+    // Derived state for other participant (assuming 1:1 mostly for now)
+    // The API structure is participants: { user: UserBasic, ... }[]
+    const otherParticipant = selectedConv?.participants?.find((p: any) => p.user.id !== user?.id)?.user || selectedConv?.participants?.[0]?.user;
+
+    // Filter logic is now handled by API based on tab
+    const filteredConversations = conversations;
 
     return (
         <div
@@ -221,7 +386,8 @@ export function MessageDrawer() {
                             {selectedTab === "all" ? (
                                 filteredConversations.length > 0 ? (
                                     filteredConversations.map((conv) => {
-                                        const user = conv.participants[0].user;
+                                        const partner = conv.participants?.find((p: any) => p.user.id !== user?.id)?.user || conv.participants?.[0]?.user || { name: "알 수 없음", email: "unknown@staync.com" };
+                                        const displayUser = partner;
                                         return (
                                             <div
                                                 key={conv.id}
@@ -229,16 +395,16 @@ export function MessageDrawer() {
                                                 className="px-4 py-3 flex gap-3 hover:bg-accent/50 cursor-pointer transition-colors border-b border-border/50"
                                             >
                                                 <div className="h-12 w-12 rounded-full bg-muted border border-border overflow-hidden shrink-0">
-                                                    {user.image && <img src={user.image} alt={user.name} className="h-full w-full object-cover" />}
+                                                    {displayUser.image && <img src={displayUser.image} alt={displayUser.name} className="h-full w-full object-cover" />}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between gap-1">
                                                         <div className="flex items-center gap-1 min-w-0">
-                                                            <span className="font-bold truncate">{user.name}</span>
-                                                            {user.isPrivate && (
+                                                            <span className="font-bold truncate">{displayUser.name}</span>
+                                                            {displayUser.isPrivate && (
                                                                 <HugeiconsIcon icon={LockIcon} size={14} className="text-muted-foreground shrink-0" />
                                                             )}
-                                                            <span className="text-sm text-muted-foreground truncate">@{user.email.split("@")[0]}</span>
+                                                            <span className="text-sm text-muted-foreground truncate">@{displayUser.email.split("@")[0]}</span>
                                                             <span className="text-sm text-muted-foreground shrink-0">· 21주</span>
                                                         </div>
                                                         {conv.unreadCount > 0 && (
@@ -439,8 +605,11 @@ export function MessageDrawer() {
                                     <HugeiconsIcon icon={Add01Icon} size={20} strokeWidth={2} />
                                 </button>
                                 <textarea
+                                    value={newMessage}
+                                    onChange={(e) => setNewMessage(e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     rows={1}
-                                    placeholder="복호화된 메시지"
+                                    placeholder="쪽지 보내기"
                                     className="flex-1 bg-transparent py-2 px-1 outline-none text-[15px] placeholder:text-muted-foreground resize-none max-h-[120px] overflow-y-auto"
                                     onInput={(e) => {
                                         const target = e.target as HTMLTextAreaElement;
@@ -448,7 +617,14 @@ export function MessageDrawer() {
                                         target.style.height = target.scrollHeight + 'px';
                                     }}
                                 />
-                                <button className="p-2 text-primary hover:bg-accent rounded-full transition-colors mb-0.5 opacity-50 cursor-not-allowed">
+                                <button
+                                    onClick={handleSendMessage}
+                                    disabled={!newMessage.trim()}
+                                    className={cn(
+                                        "p-2 text-primary hover:bg-accent rounded-full transition-colors mb-0.5",
+                                        !newMessage.trim() && "opacity-50 cursor-not-allowed"
+                                    )}
+                                >
                                     <HugeiconsIcon icon={SentIcon} size={20} strokeWidth={2} />
                                 </button>
                             </div>

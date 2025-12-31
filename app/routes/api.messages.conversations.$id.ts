@@ -1,7 +1,8 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
-import { pusher, getConversationChannelId, getUserChannelId } from "~/lib/pusher.server";
+import { pusher } from "~/lib/pusher.server";
+import { getConversationChannelId, getUserChannelId } from "~/lib/pusher-shared";
 import { DateTime } from "luxon";
 
 /**

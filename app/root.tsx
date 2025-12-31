@@ -6,15 +6,28 @@ import {
   Scripts,
   ScrollRestoration,
   useSearchParams,
+  data,
 } from "react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { getSession } from "~/lib/auth-utils.server";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Toaster } from "./components/ui/sonner";
 
 import { ThemeProvider } from "next-themes";
+
+export const loader = async ({ request }: Route.LoaderArgs) => {
+  const session = await getSession(request);
+  return data({
+    user: session?.user || null,
+    ENV: {
+      PUSHER_KEY: process.env.PUSHER_KEY,
+      PUSHER_CLUSTER: process.env.PUSHER_CLUSTER,
+    },
+  });
+};
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },

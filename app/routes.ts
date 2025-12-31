@@ -28,6 +28,7 @@ export default [
     route("api/follows", "routes/api.follows.ts"),
     route("api/upload", "routes/api.upload.ts"),
     route("api/users", "routes/api.users.ts"),
+    route("api/users/search", "routes/api.users.search.ts"),
     route("api/tags", "routes/api.tags.ts"),
     route("api/travel-plans", "routes/api.travel-plans.ts"),
     route("api/travel-plans/:id", "routes/api.travel-plans.$id.ts"),

@@ -1,7 +1,8 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { prisma } from "~/lib/prisma.server";
-import { pusher, getConversationChannelId, getUserChannelId } from "~/lib/pusher.server";
+import { pusher } from "~/lib/pusher.server";
+import { getUserChannelId } from "~/lib/pusher-shared";
 import { DateTime } from "luxon";
 import { z } from "zod";
 
@@ -65,6 +66,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
                                 },
                             },
                         },
+                        _count: {
+                            select: {
+                                messages: {
+                                    where: {
+                                        isRead: false,
+                                        senderId: { not: userId },
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -76,7 +87,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
         });
 
         // 필터링: tab에 따라 isAccepted 값으로 필터
-        let filteredConversations = participants.map((p) => p.conversation);
+        let filteredConversations = participants.map((p) => ({
+            ...p.conversation,
+            unreadCount: p.conversation._count.messages,
+        }));
 
         if (tab === "requests") {
             filteredConversations = filteredConversations.filter((c) => !c.isAccepted);
@@ -96,27 +110,35 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 isAccepted: conv.isAccepted,
                 lastMessageAt: conv.lastMessageAt.toISOString(),
                 createdAt: conv.createdAt.toISOString(),
+                unreadCount: conv.unreadCount,
                 participants: otherParticipants.map((p) => ({
-                    id: p.user.id,
-                    name: p.user.name || "알 수 없음",
-                    username: p.user.email.split("@")[0],
-                    image: p.user.image || p.user.avatarUrl,
-                    isPrivate: p.user.isPrivate,
+                    id: p.id,
+                    conversationId: p.conversationId,
+                    userId: p.userId,
+                    joinedAt: p.joinedAt.toISOString(),
+                    isAdmin: p.isAdmin,
+                    user: {
+                        id: p.user.id,
+                        name: p.user.name || "알 수 없음",
+                        email: p.user.email,
+                        image: p.user.image || p.user.avatarUrl,
+                        isPrivate: p.user.isPrivate,
+                    }
                 })),
                 lastMessage: lastMessage
                     ? {
-                          id: lastMessage.id,
-                          content: lastMessage.content,
-                          senderId: lastMessage.senderId,
-                          senderName: lastMessage.sender.name || "알 수 없음",
-                          createdAt: DateTime.fromJSDate(lastMessage.createdAt)
-                              .setLocale("ko")
-                              .toRelative() || "방금 전",
-                          fullCreatedAt: DateTime.fromJSDate(lastMessage.createdAt)
-                              .setLocale("ko")
-                              .toLocaleString(DateTime.DATETIME_MED),
-                          isRead: lastMessage.isRead,
-                      }
+                        id: lastMessage.id,
+                        content: lastMessage.content,
+                        senderId: lastMessage.senderId,
+                        senderName: lastMessage.sender.name || "알 수 없음",
+                        createdAt: DateTime.fromJSDate(lastMessage.createdAt)
+                            .setLocale("ko")
+                            .toRelative() || "방금 전",
+                        fullCreatedAt: DateTime.fromJSDate(lastMessage.createdAt)
+                            .setLocale("ko")
+                            .toLocaleString(DateTime.DATETIME_MED),
+                        isRead: lastMessage.isRead,
+                    }
                     : null,
             };
         });
@@ -184,6 +206,21 @@ export async function action({ request }: ActionFunctionArgs) {
                 include: {
                     participants: {
                         where: { leftAt: null }, // 나가지 않은 참여자만
+                        include: {
+                            user: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    email: true,
+                                    image: true,
+                                    avatarUrl: true,
+                                    isPrivate: true,
+                                    _count: {
+                                        select: { followedBy: true },
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             });
@@ -192,13 +229,22 @@ export async function action({ request }: ActionFunctionArgs) {
             if (existingConv && existingConv.participants.length === 2) {
                 const participantIds = existingConv.participants.map((p) => p.userId);
                 if (participantIds.includes(userId) && participantIds.includes(otherUserId)) {
+                    // 클라이언트 포맷으로 변환하여 반환
+                    const formattedConv = {
+                        ...existingConv,
+                        participants: existingConv.participants.map(p => ({
+                            ...p,
+                            user: {
+                                ...p.user,
+                                image: p.user.image || p.user.avatarUrl,
+                                // 날짜 포맷팅 등 필요한 추가 처리가 있다면 여기서
+                            }
+                        }))
+                    };
+
                     return data({
                         success: true,
-                        conversation: {
-                            id: existingConv.id,
-                            isGroup: existingConv.isGroup,
-                            isAccepted: existingConv.isAccepted,
-                        },
+                        conversation: formattedConv,
                     });
                 }
             }
