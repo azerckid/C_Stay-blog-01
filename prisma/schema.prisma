@@ -38,6 +38,8 @@ model User {
   notifications       Notification[]       @relation("ReceivedNotifications")
   issuedNotifications Notification[]       @relation("IssuedNotifications")
   travelPlans         TravelPlan[]
+  directMessages      DirectMessage[]
+  dmParticipants      DMParticipant[]
 
   @@map("User")
 }
@@ -337,4 +339,60 @@ model TravelPlanItem {
 
   @@index([travelPlanId])
   @@map("TravelPlanItem")
+}
+
+// --- 3. 메시지 (Direct Messages) 테이블 ---
+
+model DirectMessage {
+  id                String   @id @default(cuid())
+  conversationId    String
+  senderId          String
+  content           String
+  isRead            Boolean  @default(false)
+  deletedBySender   Boolean  @default(false)
+  deletedByReceiver Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  conversation DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User           @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("DirectMessage")
+}
+
+model DMConversation {
+  id            String   @id @default(cuid())
+  isGroup       Boolean  @default(false)
+  groupName     String?
+  lastMessageAt DateTime @default(now())
+  isAccepted    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages     DirectMessage[]
+  participants DMParticipant[]
+
+  @@index([lastMessageAt])
+  @@index([isAccepted])
+  @@map("DMConversation")
+}
+
+model DMParticipant {
+  id             String    @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime  @default(now())
+  leftAt         DateTime?
+  isAdmin        Boolean   @default(false)
+
+  conversation DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+  @@map("DMParticipant")
 }
