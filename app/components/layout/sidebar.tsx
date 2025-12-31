@@ -18,6 +18,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { Button } from "~/components/ui/button";
 import { toast } from "sonner";
 
 const NAV_ITEMS = [
@@ -123,7 +124,7 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose, unreadCount = 0 }:
             </div>
 
             {/* User Session Nav */}
-            {session?.user && (
+            {session?.user ? (
                 <div className={cn("flex items-center gap-3 p-3 rounded-full hover:bg-accent transition-colors mt-auto group", isMobileMenu ? "w-full" : "w-fit xl:w-full")}>
                     <Link
                         to={`/user/${session.user.id}`}
@@ -164,6 +165,14 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose, unreadCount = 0 }:
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                </div>
+            ) : (
+                <div className={cn("mt-auto p-3", isMobileMenu ? "w-full" : "w-fit xl:w-full")}>
+                    <Link to="/login" onClick={onClose} className="block w-full">
+                        <Button className="w-full rounded-full font-bold h-12 text-base">
+                            로그인
+                        </Button>
+                    </Link>
                 </div>
             )}
         </aside>
