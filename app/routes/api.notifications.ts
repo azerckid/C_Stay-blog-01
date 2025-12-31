@@ -77,5 +77,34 @@ export async function action({ request }: ActionFunctionArgs) {
         }
     }
 
+    if (request.method === "DELETE") {
+        try {
+            const formData = await request.formData();
+            const notificationId = formData.get("id") as string;
+            const type = formData.get("type") as string; // 'all' or undefined
+
+            if (type === "all") {
+                // 모든 알림 삭제
+                await prisma.notification.deleteMany({
+                    where: { recipientId: userId }
+                });
+                return data({ success: true, message: "모든 알림이 삭제되었습니다." });
+            } else if (notificationId) {
+                // 단일 알림 삭제
+                await prisma.notification.delete({
+                    where: { id: notificationId, recipientId: userId }
+                });
+                return data({ success: true, message: "알림이 삭제되었습니다." });
+            }
+
+            return data({ error: "삭제할 알림 정보가 없습니다." }, { status: 400 });
+
+        } catch (error) {
+            console.error("Notification delete error:", error);
+            // Record not found handled by Prisma normally throws, we can catch specific P2025 if needed but general error is fine
+            return data({ error: "알림 삭제 중 오류가 발생했습니다." }, { status: 500 });
+        }
+    }
+
     return data({ error: "Method Not Allowed" }, { status: 405 });
 }

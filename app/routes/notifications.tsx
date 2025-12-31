@@ -11,8 +11,16 @@ import {
     RepeatIcon,
     Settings02Icon,
     Tick01Icon,
-    UserIcon
+    UserIcon,
+    Delete02Icon,
+    MoreHorizontalIcon
 } from "@hugeicons/core-free-icons";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 import { useEffect, useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "~/components/ui/avatar";
@@ -95,9 +103,24 @@ export default function NotificationsPage() {
         <div className="flex flex-col min-h-screen">
             <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between">
                 <h1 className="text-xl font-bold font-heading">알림</h1>
-                <button className="p-2 hover:bg-accent rounded-full transition-colors">
-                    <HugeiconsIcon icon={Settings02Icon} className="h-5 w-5" />
-                </button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger className="p-2 hover:bg-accent rounded-full transition-colors outline-none">
+                        <HugeiconsIcon icon={Settings02Icon} className="h-5 w-5" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                            className="text-destructive focus:text-destructive cursor-pointer"
+                            onClick={() => {
+                                if (confirm("모든 알림을 삭제하시겠습니까?")) {
+                                    fetcher.submit({ type: "all" }, { method: "DELETE", action: "/api/notifications" });
+                                }
+                            }}
+                        >
+                            <HugeiconsIcon icon={Delete02Icon} className="mr-2 h-4 w-4" />
+                            모든 알림 삭제
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </header>
 
             <main className="flex-1">
@@ -182,7 +205,7 @@ function NotificationItem({ notification }: { notification: any }) {
         <div
             onClick={() => handleNotificationClick(notification)}
             className={cn(
-                "p-4 flex gap-4 cursor-pointer hover:bg-accent/50 transition-colors",
+                "p-4 flex gap-4 cursor-pointer hover:bg-accent/50 transition-colors group relative",
                 !notification.isRead && "bg-primary/5 border-l-2 border-primary"
             )}
         >
@@ -243,6 +266,26 @@ function NotificationItem({ notification }: { notification: any }) {
                         요청이 처리되었습니다.
                     </div>
                 )}
+            </div>
+
+            {/* Delete Single Notification */}
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                    <DropdownMenuTrigger className="p-1.5 hover:bg-primary/10 rounded-full transition-colors text-muted-foreground hover:text-primary outline-none">
+                        <HugeiconsIcon icon={MoreHorizontalIcon} className="h-4 w-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                            className="text-destructive focus:text-destructive cursor-pointer"
+                            onClick={() => {
+                                fetcher.submit({ id: notification.id }, { method: "DELETE", action: "/api/notifications" });
+                            }}
+                        >
+                            <HugeiconsIcon icon={Delete02Icon} className="mr-2 h-4 w-4" />
+                            알림 삭제
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
         </div>
     );
