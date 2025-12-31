@@ -16,6 +16,8 @@ import {
     TickDouble01Icon,
     LockIcon,
     SmileIcon,
+    Time01Icon,
+    Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import { MOCK_CONVERSATIONS, MOCK_MESSAGES, MOCK_USERS } from "~/lib/mock-messages";
@@ -141,6 +143,9 @@ export function MessageDrawer() {
 
         channel.bind("new-message", (data: any) => {
             if (data.conversationId === selectedConvId) {
+                // If I am the sender, ignore this Pusher event to avoid duplication (Optimistic UI handles it)
+                if (data.message.senderId === user?.id) return;
+
                 setMessages((prev) => [...prev, data.message]);
             }
         });
@@ -154,7 +159,7 @@ export function MessageDrawer() {
             channel.unbind_all();
             pusherClient.unsubscribe(channelName);
         };
-    }, [pusherClient, selectedConvId]);
+    }, [pusherClient, selectedConvId, user?.id]);
 
     // Handle new conversation creation/finding result
     useEffect(() => {
@@ -198,7 +203,7 @@ export function MessageDrawer() {
 
         messagesFetcher.submit(
             { conversationId: selectedConvId, content },
-            { method: "post", action: "/api/messages" }
+            { method: "post", action: "/api/messages", encType: "application/json" }
         );
     };
 
@@ -473,7 +478,7 @@ export function MessageDrawer() {
                                 </div>
 
                                 {messages.map((m) => {
-                                    const isMine = m.senderId === "me";
+                                    const isMine = m.senderId === user?.id;
                                     return (
                                         <div key={m.id} className={cn(
                                             "flex flex-col group relative",
@@ -546,9 +551,25 @@ export function MessageDrawer() {
                                             </div>
                                             <div className="mt-1 px-1 flex items-center gap-1">
                                                 <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                                    {format(new Date(m.createdAt), 'aaa h:mm', { locale: ko })}
-                                                    {isMine && m.isRead && (
-                                                        <HugeiconsIcon icon={SentIcon} size={12} className="text-primary" />
+                                                    {(() => {
+                                                        const date = new Date(m.createdAt);
+                                                        return !isNaN(date.getTime())
+                                                            ? format(date, 'aaa h:mm', { locale: ko })
+                                                            : "";
+                                                    })()}
+                                                    {isMine && (
+                                                        m.isOptimistic ? (
+                                                            <HugeiconsIcon icon={Time01Icon} size={12} className="text-muted-foreground animate-pulse" />
+                                                        ) : (
+                                                            <HugeiconsIcon
+                                                                icon={Tick02Icon}
+                                                                size={14}
+                                                                className={cn(
+                                                                    "transition-colors",
+                                                                    m.isRead ? "text-primary" : "text-muted-foreground"
+                                                                )}
+                                                            />
+                                                        )
                                                     )}
                                                 </span>
                                             </div>

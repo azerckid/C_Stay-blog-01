@@ -50,13 +50,27 @@ export async function action({ request }: ActionFunctionArgs) {
             return data({ error: "대화방에 접근할 수 없습니다." }, { status: 403 });
         }
 
-        // 메시지 전송 시 대화를 자동으로 수락 (요청 상태였다면)
+        // 메시지 전송 시 대화 수락 로직 (Twitter 스타일)
+        // 1. 이미 수락된 상태면 패스
+        // 2. 수락되지 않은 상태일 때:
+        //    - 상대방이 보낸 메시지가 하나라도 있다면 -> 내가 답장하는 것이므로 '수락' 처리
+        //    - 상대방이 보낸 메시지가 없다면 -> 내가 계속 요청을 보내는 것이므로 '수락 안 함' (요청 상태 유지)
         const isAccepted = participant.conversation.isAccepted || false;
         if (!isAccepted) {
-            await prisma.dMConversation.update({
-                where: { id: conversationId },
-                data: { isAccepted: true },
+            // 상대방이 보낸 메시지가 있는지 확인
+            const otherMessagesCount = await prisma.directMessage.count({
+                where: {
+                    conversationId,
+                    senderId: { not: userId },
+                },
             });
+
+            if (otherMessagesCount > 0) {
+                await prisma.dMConversation.update({
+                    where: { id: conversationId },
+                    data: { isAccepted: true },
+                });
+            }
         }
 
         // 메시지 생성

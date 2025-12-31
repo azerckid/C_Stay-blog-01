@@ -93,9 +93,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
         }));
 
         if (tab === "requests") {
-            filteredConversations = filteredConversations.filter((c) => !c.isAccepted);
+            // 요청 탭: 수락되지 않았고, 마지막 메시지를 '다른 사람'이 보낸 경우 (내가 받은 요청)
+            filteredConversations = filteredConversations.filter((c) => {
+                const lastMsg = c.messages[0];
+                return !c.isAccepted && lastMsg && lastMsg.senderId !== userId;
+            });
         } else {
-            filteredConversations = filteredConversations.filter((c) => c.isAccepted);
+            // 전체 탭: 수락되었거나, 수락되지 않았더라도 '내가' 마지막 메시지를 보낸 경우 (내가 보낸 요청)
+            filteredConversations = filteredConversations.filter((c) => {
+                const lastMsg = c.messages[0];
+                return c.isAccepted || (lastMsg && lastMsg.senderId === userId);
+            });
         }
 
         // 포맷팅
