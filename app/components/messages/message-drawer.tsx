@@ -21,6 +21,7 @@ import type { DMConversation, DirectMessage } from "~/types/messages";
 import { formatRelative, format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { NewMessageModal } from "./new-message-modal";
+import { MessageSettingsModal } from "./message-settings-modal";
 
 type DrawerState = "hidden" | "expanded-list" | "expanded-chat";
 
@@ -29,6 +30,7 @@ export function MessageDrawer() {
     const [selectedTab, setSelectedTab] = useState<"all" | "requests">("all");
     const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
     const [isNewMessageModalOpen, setIsNewMessageModalOpen] = useState(false);
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [selectedMedia, setSelectedMedia] = useState<{ file: File; preview: string } | null>(null);
     const [reactions, setReactions] = useState<Record<string, string>>({});
     const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null);
@@ -143,7 +145,7 @@ export function MessageDrawer() {
                                 className="p-2 hover:bg-accent rounded-full transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    alert("쪽지 설정 기능 구현 예정입니다.");
+                                    setIsSettingsModalOpen(true);
                                 }}
                             >
                                 <HugeiconsIcon icon={Settings01Icon} size={20} strokeWidth={2} />
@@ -441,6 +443,11 @@ export function MessageDrawer() {
                 isOpen={isNewMessageModalOpen}
                 onClose={() => setIsNewMessageModalOpen(false)}
                 onSelectUser={handleNewMessageSelect}
+            />
+
+            <MessageSettingsModal
+                isOpen={isSettingsModalOpen}
+                onClose={() => setIsSettingsModalOpen(false)}
             />
         </div>
     );
