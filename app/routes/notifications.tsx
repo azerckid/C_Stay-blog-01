@@ -14,7 +14,7 @@ import {
     UserIcon
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 
@@ -54,7 +54,29 @@ export async function loader({ request }: LoaderFunctionArgs) {
         }
     });
 
-    return data({ notifications });
+    // 팔로우 요청 알림에 대해 실제 팔로우 상태 확인
+    const notificationsWithStatus = await Promise.all(notifications.map(async (notification) => {
+        if (notification.type === "FOLLOW_REQUEST") {
+            // issuer가 나(recipient)를 팔로우하고 있는지 확인
+            // Follow 테이블: followerId(요청자) -> followingId(나)
+            const follow = await prisma.follow.findUnique({
+                where: {
+                    followerId_followingId: {
+                        followerId: notification.issuerId,
+                        followingId: userId,
+                    },
+                },
+            });
+
+            // 팔로우 요청이 존재하고 상태가 PENDING이면 아직 처리 안 된 것 (isHandled = false)
+            // 팔로우가 없거나(거절됨), 상태가 ACCEPTED면 처리 된 것 (isHandled = true)
+            const isHandled = !follow || follow.status !== "PENDING";
+            return { ...notification, isHandled };
+        }
+        return { ...notification, isHandled: false };
+    }));
+
+    return data({ notifications: notificationsWithStatus });
 }
 
 export default function NotificationsPage() {
@@ -64,7 +86,7 @@ export default function NotificationsPage() {
 
     // 페이지 진입 시 모든 알림 읽음 처리
     useEffect(() => {
-        if (notifications.some(n => !n.isRead)) {
+        if (notifications.some((n: any) => !n.isRead)) {
             fetcher.submit({}, { method: "POST", action: "/api/notifications" });
         }
     }, []);
@@ -101,6 +123,14 @@ export default function NotificationsPage() {
 function NotificationItem({ notification }: { notification: any }) {
     const navigate = useNavigate();
     const fetcher = useFetcher();
+    // 서버에서 전달받은 isHandled 값을 초기값으로 사용
+    const [hasHandled, setHasHandled] = useState(notification.isHandled || false);
+
+    useEffect(() => {
+        if (fetcher.state === "idle" && fetcher.data && (fetcher.data as any).success) {
+            setHasHandled(true);
+        }
+    }, [fetcher.state, fetcher.data]);
 
     const getNotificationIcon = (type: string) => {
         switch (type) {
@@ -179,9 +209,9 @@ function NotificationItem({ notification }: { notification: any }) {
                 )}
 
                 {/* Follow Request Actions */}
-                {notification.type === "FOLLOW_REQUEST" && (
+                {notification.type === "FOLLOW_REQUEST" && !hasHandled && (
                     <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-                        <fetcher.Form method="post" action="/api/follows">
+                        <fetcher.Form method="post" action="/api/follows" onSubmit={() => setHasHandled(true)}>
                             <input type="hidden" name="targetUserId" value={notification.issuerId} />
                             <input type="hidden" name="intent" value="accept" />
                             <Button
@@ -193,7 +223,7 @@ function NotificationItem({ notification }: { notification: any }) {
                                 승인
                             </Button>
                         </fetcher.Form>
-                        <fetcher.Form method="post" action="/api/follows">
+                        <fetcher.Form method="post" action="/api/follows" onSubmit={() => setHasHandled(true)}>
                             <input type="hidden" name="targetUserId" value={notification.issuerId} />
                             <input type="hidden" name="intent" value="reject" />
                             <Button
@@ -206,6 +236,11 @@ function NotificationItem({ notification }: { notification: any }) {
                                 거절
                             </Button>
                         </fetcher.Form>
+                    </div>
+                )}
+                {hasHandled && (
+                    <div className="text-sm text-muted-foreground mt-2 font-medium">
+                        요청이 처리되었습니다.
                     </div>
                 )}
             </div>
