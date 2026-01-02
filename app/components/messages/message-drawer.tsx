@@ -13,7 +13,6 @@ import {
     SentIcon,
     Add01Icon,
     AiViewIcon,
-    TickDouble01Icon,
     LockIcon,
     SmileIcon,
     Time01Icon,
@@ -22,7 +21,7 @@ import {
 import { cn } from "~/lib/utils";
 import { MOCK_CONVERSATIONS, MOCK_MESSAGES, MOCK_USERS } from "~/lib/mock-messages";
 import type { DMConversation, DirectMessage } from "~/types/messages";
-import { formatRelative, format } from "date-fns";
+import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { toast } from "sonner";
 import { NewMessageModal } from "./new-message-modal";

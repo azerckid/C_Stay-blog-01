@@ -14,3 +14,7 @@ dev.db-journal
 *.db-journal
 
 /generated/prisma
+
+# documentation
+docs/
+AGENTS.md

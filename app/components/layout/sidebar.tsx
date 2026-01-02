@@ -116,12 +116,12 @@ export function Sidebar({ onAiLogOpen, isMobileMenu, onClose, unreadCount = 0 }:
                 <button
                     onClick={onAiLogOpen}
                     className={cn(
-                        "bg-primary text-white rounded-full font-bold hover:bg-primary/90 transition-all mt-6 flex items-center justify-center shadow-lg",
+                        "bg-pink-500 text-white rounded-full font-bold hover:bg-pink-600 transition-all mt-6 flex items-center justify-center shadow-lg",
                         isMobileMenu ? "h-14 w-14 ml-2" : "p-2 h-14 w-14 xl:h-[50px] xl:w-[191px] xl:py-2 xl:px-4"
                     )}
                 >
                     <HugeiconsIcon icon={AiViewIcon} strokeWidth={2.5} className={cn("h-7 w-7", (!isMobileMenu && "xl:mr-2"))} />
-                    {!isMobileMenu && <span className="text-lg hidden xl:block">AI 여행 일지</span>}
+                    {!isMobileMenu && <span className="text-lg hidden xl:block text-white">AI 여행 일지</span>}
                 </button>
             </div>
 

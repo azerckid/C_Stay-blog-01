@@ -7,7 +7,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
     FavouriteIcon,
     Message01Icon,
-    UserAdd01Icon,
     RepeatIcon,
     Settings02Icon,
     Tick01Icon,

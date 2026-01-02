@@ -5,7 +5,6 @@ import {
     Cancel01Icon,
     Search01Icon,
     LockIcon,
-    TickDouble01Icon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import type { UserBasic } from "~/types/messages";
