@@ -18,3 +18,9 @@ dev.db-journal
 # documentation
 docs/
 AGENTS.md
+
+# Development scripts and tools
+testsprite_tests/
+migrate-turso.ts
+scripts/
+dev.db
