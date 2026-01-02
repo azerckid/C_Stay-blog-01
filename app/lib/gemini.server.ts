@@ -1,11 +1,21 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-if (!process.env.GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not defined in .env");
-}
+// 지연 초기화: 함수가 호출될 때만 초기화
+let genAI: GoogleGenerativeAI | null = null;
+let embeddingModel: ReturnType<GoogleGenerativeAI["getGenerativeModel"]> | null = null;
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+function initializeGemini() {
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다. Vercel 환경 변수 설정을 확인해주세요.");
+    }
+    
+    if (!genAI) {
+        genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+    }
+    
+    return embeddingModel!;
+}
 
 /**
  * Generates an embedding for the given text using Gemini.
@@ -13,7 +23,8 @@ const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" })
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
     try {
-        const result = await embeddingModel.embedContent(text);
+        const model = initializeGemini();
+        const result = await model.embedContent(text);
         return result.embedding.values;
     } catch (error) {
         console.error("Error generating embedding with Gemini:", error);
