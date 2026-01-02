@@ -30,13 +30,27 @@ if (process.env.KAKAO_CLIENT_ID && process.env.KAKAO_CLIENT_SECRET) {
     };
 }
 
-export const auth = betterAuth({
-    database: prismaAdapter(prisma, {
-        provider: "sqlite", // Turso/libSQL uses sqlite provider in prisma
-    }),
-    baseURL: normalizeUrl(process.env.BETTER_AUTH_URL),
-    emailAndPassword: {
-        enabled: true,
-    },
-    socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
-});
+// Better Auth 초기화
+// baseURL이 없으면 런타임에 현재 요청의 origin을 사용하도록 설정
+const baseURL = normalizeUrl(process.env.BETTER_AUTH_URL);
+
+let auth;
+try {
+    auth = betterAuth({
+        database: prismaAdapter(prisma, {
+            provider: "sqlite", // Turso/libSQL uses sqlite provider in prisma
+        }),
+        ...(baseURL && { baseURL }), // baseURL이 있을 때만 전달
+        emailAndPassword: {
+            enabled: true,
+        },
+        socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
+    });
+} catch (error) {
+    console.error("Better Auth 초기화 실패:", error);
+    throw new Error(
+        `Better Auth 초기화 중 오류가 발생했습니다: ${error instanceof Error ? error.message : String(error)}`
+    );
+}
+
+export { auth };

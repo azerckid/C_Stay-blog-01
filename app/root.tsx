@@ -19,14 +19,26 @@ import { Toaster } from "./components/ui/sonner";
 import { ThemeProvider } from "next-themes";
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
-  const session = await getSession(request);
-  return data({
-    user: session?.user || null,
-    ENV: {
-      PUSHER_KEY: process.env.PUSHER_KEY,
-      PUSHER_CLUSTER: process.env.PUSHER_CLUSTER,
-    },
-  });
+  try {
+    const session = await getSession(request);
+    return data({
+      user: session?.user || null,
+      ENV: {
+        PUSHER_KEY: process.env.PUSHER_KEY,
+        PUSHER_CLUSTER: process.env.PUSHER_CLUSTER,
+      },
+    });
+  } catch (error) {
+    console.error("Root Loader Error:", error);
+    // 에러가 발생해도 앱은 계속 동작하도록 빈 세션 반환
+    return data({
+      user: null,
+      ENV: {
+        PUSHER_KEY: process.env.PUSHER_KEY,
+        PUSHER_CLUSTER: process.env.PUSHER_CLUSTER,
+      },
+    });
+  }
 };
 
 export const links: Route.LinksFunction = () => [
