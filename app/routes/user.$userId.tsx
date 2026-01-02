@@ -314,7 +314,7 @@ export default function UserProfile() {
                                 key={t.id}
                                 onClick={() => handleTabChange(t.id)}
                                 className={cn(
-                                    "px-4 py-3 font-medium transition-colors relative hover:bg-accent/50 flex-1 text-center",
+                                    "px-4 py-3 font-medium transition-colors relative hover:bg-accent/50 flex-1 text-center whitespace-nowrap",
                                     tab === t.id
                                         ? "text-foreground font-bold"
                                         : "text-muted-foreground hover:text-foreground"
