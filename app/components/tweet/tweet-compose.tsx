@@ -407,7 +407,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                             title="위치"
                             disabled={isSubmitting}
                             onClick={() => setLocationPickerOpen(true)}
-                            className="p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50"
+                            className="p-2 hover:bg-primary/10 rounded-full transition-colors disabled:opacity-50"
                         >
                             <HugeiconsIcon icon={Location01Icon} strokeWidth={2} className="h-5 w-5" />
                         </button>
@@ -416,7 +416,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                             title="태그"
                             disabled={isSubmitting}
                             onClick={() => setTagPickerOpen(true)}
-                            className="p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50"
+                            className="p-2 hover:bg-primary/10 rounded-full transition-colors disabled:opacity-50"
                         >
                             <HugeiconsIcon icon={Tag01Icon} strokeWidth={2} className="h-5 w-5" />
                         </button>
@@ -424,7 +424,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                             <PopoverTrigger
                                 title="일정"
                                 disabled={isSubmitting}
-                                className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50", date && "text-primary")}
+                                className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors disabled:opacity-50", date && "text-primary")}
                             >
                                 <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="h-5 w-5" />
                             </PopoverTrigger>
@@ -441,7 +441,7 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
                             <DropdownMenuTrigger
                                 title="여행 계획"
                                 disabled={isSubmitting || travelPlans.length === 0}
-                                className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors hidden sm:block disabled:opacity-50", travelPlanId && "text-primary")}
+                                className={cn("p-2 hover:bg-primary/10 rounded-full transition-colors disabled:opacity-50", travelPlanId && "text-primary")}
                             >
                                 <HugeiconsIcon icon={Airplane01Icon} strokeWidth={2} className="h-5 w-5" />
                             </DropdownMenuTrigger>
