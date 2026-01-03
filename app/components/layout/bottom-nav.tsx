@@ -28,6 +28,12 @@ export function BottomNav({ unreadCount = 0 }: BottomNavProps) {
                 <NavLink
                     key={item.href}
                     to={item.href}
+                    onClick={(e) => {
+                        if (item.label === "쪽지") {
+                            e.preventDefault();
+                            window.dispatchEvent(new CustomEvent('toggle-message-drawer'));
+                        }
+                    }}
                     className={({ isActive }) =>
                         cn(
                             "flex flex-col items-center justify-center w-full h-full transition-colors group",

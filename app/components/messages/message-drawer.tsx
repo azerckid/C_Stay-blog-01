@@ -77,7 +77,7 @@ export function MessageDrawer() {
             toast.error(fetcher.data.error);
             return;
         }
-        
+
         if (fetcher.data?.conversations) {
             setConversations((prev) => {
                 const newConvs = fetcher.data.conversations;
@@ -136,7 +136,7 @@ export function MessageDrawer() {
             messagesFetcher.load(`/api/messages/conversations/${selectedConvId}`);
             setNextCursor(null); // Reset cursor when switching conversations
             setIsTyping(false); // Reset typing indicator
-            
+
             // 채팅방 진입 시 모든 읽지 않은 메시지를 읽음 처리
             fetch(`/api/messages/conversations/${selectedConvId}/read`, {
                 method: "POST",
@@ -168,14 +168,14 @@ export function MessageDrawer() {
             setMessages(prev => prev.filter(m => !m.isOptimistic || m.senderId !== user?.id));
             return;
         }
-        
+
         if (messagesFetcher.data?.messages) {
             setMessages(messagesFetcher.data.messages);
             setNextCursor(messagesFetcher.data.nextCursor || null);
         } else if (messagesFetcher.data?.success && messagesFetcher.data?.message) {
             // Handle successful send response: Replace optimistic message
             const sentMessage = messagesFetcher.data.message;
-            
+
             // 디버깅: API 응답으로 받은 메시지 확인
             if (sentMessage.mediaUrl) {
                 console.log("[Client] Received message from API:", {
@@ -184,7 +184,7 @@ export function MessageDrawer() {
                     mediaType: sentMessage.mediaType,
                 });
             }
-            
+
             setMessages(prev => {
                 // Find the most recent optimistic message from the current user (search from end)
                 let optimisticIndex = -1;
@@ -195,14 +195,14 @@ export function MessageDrawer() {
                         break;
                     }
                 }
-                
+
                 if (optimisticIndex !== -1) {
                     // Replace the optimistic message with the actual message
                     const newMessages = [...prev];
                     newMessages[optimisticIndex] = sentMessage;
                     return newMessages;
                 }
-                
+
                 // If no optimistic message found, just add the new message
                 return [...prev, sentMessage];
             });
@@ -215,10 +215,10 @@ export function MessageDrawer() {
             toast.error(loadMoreFetcher.data.error);
             return;
         }
-        
+
         if (loadMoreFetcher.data?.messages) {
             const previousScrollHeight = messagesContainerRef.current?.scrollHeight || 0;
-            
+
             setMessages(prev => [...loadMoreFetcher.data.messages, ...prev]);
             setNextCursor(loadMoreFetcher.data.nextCursor || null);
 
@@ -319,7 +319,7 @@ export function MessageDrawer() {
         channel.bind("message-read", (data: any) => {
             if (data.conversationId === selectedConvId && data.readBy !== user?.id) {
                 console.log("[Pusher] Received message-read event:", data);
-                
+
                 // 상대방이 읽은 메시지들을 읽음 상태로 업데이트
                 setMessages((prev) => {
                     const updated = prev.map((msg) => {
@@ -338,12 +338,12 @@ export function MessageDrawer() {
                         }
                         return msg;
                     });
-                    
+
                     console.log("[Pusher] Updated messages:", {
                         before: prev.filter(m => m.senderId === user?.id && !m.isRead).length,
                         after: updated.filter(m => m.senderId === user?.id && !m.isRead).length,
                     });
-                    
+
                     return updated;
                 });
             }
@@ -358,7 +358,7 @@ export function MessageDrawer() {
         channel.bind("typing", (data: any) => {
             if (data.conversationId === selectedConvId && data.userId !== user?.id) {
                 setIsTyping(data.isTyping);
-                
+
                 // 타이핑이 시작되면 3초 후 자동으로 숨김
                 if (data.isTyping) {
                     setTimeout(() => {
@@ -380,7 +380,7 @@ export function MessageDrawer() {
             toast.error(createConvFetcher.data.error);
             return;
         }
-        
+
         if (createConvFetcher.data?.success && createConvFetcher.data?.conversation) {
             const conv = createConvFetcher.data.conversation;
             // Add to conversation list if not exists (though Pusher should handle this, optimistic/immediate feedback is good)
@@ -478,9 +478,9 @@ export function MessageDrawer() {
 
         messagesFetcher.submit(
             JSON.stringify(messagePayload),
-            { 
-                method: "post", 
-                action: "/api/messages", 
+            {
+                method: "post",
+                action: "/api/messages",
                 encType: "application/json",
                 headers: {
                     "Content-Type": "application/json",
@@ -561,7 +561,7 @@ export function MessageDrawer() {
     return (
         <div
             className={cn(
-                "fixed bottom-0 right-4 w-[400px] bg-background border border-border shadow-2xl rounded-t-xl transition-all duration-300 ease-in-out z-[100] hidden lg:flex flex-col",
+                "fixed bottom-0 right-0 sm:right-4 w-full sm:w-[400px] bg-background border border-border shadow-2xl rounded-t-xl transition-all duration-300 ease-in-out z-[100] flex flex-col",
                 state === "hidden" ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100",
                 "h-[80vh] max-h-[700px]"
             )}
