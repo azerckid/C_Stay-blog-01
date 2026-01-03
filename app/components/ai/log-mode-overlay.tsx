@@ -210,7 +210,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
     };
 
     const handlePublish = async () => {
-        if (!generatedResult) return;
+        if (!generatedResult || isGenerating) return;
 
         setIsGenerating(true);
         try {
@@ -235,9 +235,15 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                 toast.success("여행기가 피드에 게시되었습니다!");
                 onClose();
                 navigate("/");
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                toast.error(errorData.error || "게시에 실패했습니다.");
             }
         } catch (error) {
+            console.error("Publish Error:", error);
             toast.error("게시에 실패했습니다.");
+        } finally {
+            setIsGenerating(false);
         }
     };
 
@@ -439,16 +445,20 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                             </button>
                             <button
                                 onClick={handlePublish}
-                                disabled={isEditing}
+                                disabled={isEditing || isGenerating}
                                 className={cn(
                                     "flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all shadow-lg text-sm",
-                                    isEditing
+                                    (isEditing || isGenerating)
                                         ? "bg-slate-700 text-white/50 cursor-not-allowed"
                                         : "bg-primary text-white hover:opacity-90 shadow-primary/20"
                                 )}
                             >
-                                <HugeiconsIcon icon={Tick01Icon} size={18} />
-                                확인 및 게시
+                                {isGenerating ? (
+                                    <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                ) : (
+                                    <HugeiconsIcon icon={Tick01Icon} size={18} />
+                                )}
+                                {isGenerating ? "게시 중..." : "확인 및 게시"}
                             </button>
                         </div>
                     </div>
