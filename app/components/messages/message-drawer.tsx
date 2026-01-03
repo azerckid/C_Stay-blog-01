@@ -477,14 +477,11 @@ export function MessageDrawer() {
         });
 
         messagesFetcher.submit(
-            JSON.stringify(messagePayload),
+            messagePayload,
             {
                 method: "post",
                 action: "/api/messages",
                 encType: "application/json",
-                headers: {
-                    "Content-Type": "application/json",
-                }
             }
         );
     };
