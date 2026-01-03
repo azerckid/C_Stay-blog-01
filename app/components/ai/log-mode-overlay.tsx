@@ -404,7 +404,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
 
             {/* AI Generated Result Overlay */}
             {generatedResult && (
-                <div className="absolute inset-x-4 bottom-10 z-30 p-6 rounded-3xl bg-black/80 backdrop-blur-2xl border border-white/10 animate-in slide-in-from-bottom duration-500 shadow-2xl shadow-primary/10">
+                <div className="absolute inset-x-4 bottom-24 md:bottom-10 z-30 p-6 rounded-3xl bg-black/80 backdrop-blur-2xl border border-white/10 animate-in slide-in-from-bottom duration-500 shadow-2xl shadow-primary/10">
                     <div className="flex flex-col gap-4 text-center">
                         <div className="flex justify-center">
                             <div className="w-12 h-1 rounded-full bg-white/20 mb-2" />

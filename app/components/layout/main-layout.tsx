@@ -182,7 +182,7 @@ export function MainLayout({ children, popularTags, unreadCount = 0 }: MainLayou
             </div>
 
             {/* Floating Action Buttons (X-Style) */}
-            <div className="fixed bottom-6 right-6 z-[60] flex flex-col gap-3">
+            <div className="fixed bottom-20 sm:bottom-6 right-6 z-[70] flex flex-col gap-3">
                 {/* AI Log Mode Trigger Button (Top) */}
                 <button
                     onClick={() => setIsAiLogOpen(true)}
