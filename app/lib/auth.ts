@@ -9,8 +9,16 @@ const getBaseURL = () => {
         // 개발 환경에서는 항상 로컬 호스트 사용
         return "http://localhost:5173";
     }
-    // 프로덕션에서는 환경 변수 사용 또는 자동 감지
-    return process.env.BETTER_AUTH_URL || undefined;
+    // 프로덕션에서는 환경 변수 사용 또는 Vercel URL 자동 감지
+    if (process.env.BETTER_AUTH_URL) {
+        return process.env.BETTER_AUTH_URL;
+    }
+    // Vercel 환경 변수 사용 (자동으로 제공됨)
+    if (process.env.VERCEL_URL) {
+        return `https://${process.env.VERCEL_URL}`;
+    }
+    // 프로덕션 환경에서도 명시적 URL이 없으면 undefined (Better Auth가 자동 감지 시도)
+    return undefined;
 };
 
 export const auth = betterAuth({

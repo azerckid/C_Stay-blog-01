@@ -10,7 +10,8 @@ const getBaseURL = () => {
         return window.location.origin + "/auth";
     }
     // 서버 사이드에서는 기본값 사용 (실제로는 클라이언트에서만 사용됨)
-    return "/auth";
+    // Better Auth가 서버 사이드에서도 baseURL을 검증하므로 유효한 URL 반환
+    return "http://localhost:5173/auth";
 };
 
 export const authClient = createAuthClient({
