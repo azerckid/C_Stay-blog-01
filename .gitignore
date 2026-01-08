@@ -24,3 +24,5 @@ testsprite_tests/
 migrate-turso.ts
 scripts/
 dev.db
+.vercel
+.env*.local
