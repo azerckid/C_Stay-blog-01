@@ -1,3 +1,5 @@
+"use client";
+
 import { APIProvider, Map, Marker, InfoWindow, useMap } from "@vis.gl/react-google-maps";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { DateTime } from "luxon";
@@ -89,7 +91,7 @@ export function TravelMap({ tweets, className }: TravelMapProps) {
 function Markers({ items, onMarkerClick }: { items: any[], onMarkerClick: (id: string) => void }) {
     const map = useMap();
     const [markers, setMarkers] = useState<{ [key: string]: google.maps.Marker }>({});
-    const clusterer = useRef<MarkerClusterer | null>(null);
+    const clusterer = useRef<InstanceType<typeof MarkerClusterer> | null>(null);
 
     // 클러스터러 초기화
     useEffect(() => {
