@@ -23,8 +23,8 @@ function initializeDb(): LibSQLDatabase<typeof schema> {
     validateEnv();
 
     const connectionConfig = {
-        url: process.env.TURSO_DATABASE_URL!,
-        authToken: process.env.TURSO_AUTH_TOKEN,
+        url: process.env.TURSO_DATABASE_URL!.trim(),
+        authToken: process.env.TURSO_AUTH_TOKEN?.trim(),
     };
 
     // 서버리스 환경(Vercel)에서는 각 함수 인스턴스마다 새 클라이언트 생성
