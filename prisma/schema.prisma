@@ -6,40 +6,36 @@ datasource db {
   provider = "sqlite"
 }
 
-// --- 1. 기존 공유 테이블 (기존 구조 엄격 준수) ---
-
 model User {
-  id            String   @id
-  email         String   @unique
-  password      String?
-  name          String?
-  image         String?
-  provider      String   @default("local")
-  snsId         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  emailVerified Boolean  @default(false)
-  avatarUrl     String?
-  bio           String?
-  coverImage    String?
-  status        String   @default("OFFLINE")
-  isPrivate     Boolean  @default(false) // 비공개 계정 여부
-
-  // 관계 설정
-  accounts            Account[]
-  sessions            Session[]
-  tweets              Tweet[]
-  likes               Like[]
-  retweets            Retweet[]
-  followedBy          Follow[]             @relation("following")
-  following           Follow[]             @relation("follower")
+  id                  String               @id
+  email               String               @unique
+  password            String?
+  name                String?
+  image               String?
+  provider            String               @default("local")
+  snsId               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  emailVerified       Boolean              @default(false)
+  avatarUrl           String?
+  bio                 String?
+  coverImage          String?
+  status              String               @default("OFFLINE")
+  isPrivate           Boolean              @default(false)
   bookmarks           Bookmark[]
   bookmarkCollections BookmarkCollection[]
-  notifications       Notification[]       @relation("ReceivedNotifications")
-  issuedNotifications Notification[]       @relation("IssuedNotifications")
-  travelPlans         TravelPlan[]
-  directMessages      DirectMessage[]
   dmParticipants      DMParticipant[]
+  directMessages      DirectMessage[]
+  followedBy          Follow[]             @relation("following")
+  following           Follow[]             @relation("follower")
+  likes               Like[]
+  issuedNotifications Notification[]       @relation("IssuedNotifications")
+  notifications       Notification[]       @relation("ReceivedNotifications")
+  retweets            Retweet[]
+  travelPlans         TravelPlan[]
+  tweets              Tweet[]
+  accounts            Account[]
+  sessions            Session[]
 
   @@map("User")
 }
@@ -58,8 +54,7 @@ model Account {
   password              String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account")
 }
@@ -73,8 +68,7 @@ model Session {
   ipAddress String?
   userAgent String?
   userId    String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("session")
 }
@@ -90,49 +84,38 @@ model Verification {
   @@map("verification")
 }
 
-// --- 2. 트위터 클론 신규 테이블 ---
-
 model Tweet {
-  id              String    @id @default(cuid())
+  id              String           @id @default(cuid())
   userId          String
   content         String
   parentId        String?
-  isRetweet       Boolean   @default(false)
+  isRetweet       Boolean          @default(false)
   originalTweetId String?
   deletedAt       DateTime?
-
-  // 여행 특화 필드
-  locationName String?
-  latitude     Float?
-  longitude    Float?
-  address      String?
-  travelDate   DateTime?
-  country      String?
-  city         String?
-  travelPlanId String?
-  visibility   String    @default("PUBLIC") // PUBLIC, FOLLOWERS, PRIVATE
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  travelPlan TravelPlan? @relation(fields: [travelPlanId], references: [id], onDelete: SetNull)
-
-  // 답글 관계
-  parent  Tweet?  @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies Tweet[] @relation("Replies")
-
-  // 리트윗 관계 (원본 트윗 연결)
-  originalTweet Tweet?  @relation("Retweets", fields: [originalTweetId], references: [id], onDelete: SetNull)
-  retweetedIn   Tweet[] @relation("Retweets")
-
-  media          Media[]
-  likes          Like[]
-  retweets       Retweet[]
-  bookmarks      Bookmark[]
-  tags           TweetTravelTag[]
-  tweetEmbedding TweetEmbedding?
-  notifications  Notification[]
+  locationName    String?
+  latitude        Float?
+  longitude       Float?
+  address         String?
+  travelDate      DateTime?
+  country         String?
+  city            String?
+  travelPlanId    String?
+  visibility      String           @default("PUBLIC")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  bookmarks       Bookmark[]
+  likes           Like[]
+  media           Media[]
+  notifications   Notification[]
+  retweets        Retweet[]
+  originalTweet   Tweet?           @relation("Retweets", fields: [originalTweetId], references: [id])
+  retweetedIn     Tweet[]          @relation("Retweets")
+  parent          Tweet?           @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies         Tweet[]          @relation("Replies")
+  travelPlan      TravelPlan?      @relation(fields: [travelPlanId], references: [id])
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweetEmbedding  TweetEmbedding?
+  tags            TweetTravelTag[]
 
   @@index([userId])
   @@index([parentId])
@@ -147,15 +130,14 @@ model Tweet {
 model Media {
   id           String   @id @default(cuid())
   tweetId      String
-  type         String // 'IMAGE' 또는 'VIDEO'
+  type         String
   url          String
   thumbnailUrl String?
-  publicId     String? // for deletion
   altText      String?
   order        Int      @default(0)
   createdAt    DateTime @default(now())
-
-  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  publicId     String?
+  tweet        Tweet    @relation(fields: [tweetId], references: [id], onDelete: Cascade)
 
   @@index([tweetId])
   @@index([tweetId, order])
@@ -167,9 +149,8 @@ model Like {
   userId    String
   tweetId   String
   createdAt DateTime @default(now())
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  tweet     Tweet    @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tweetId])
   @@index([userId])
@@ -182,9 +163,8 @@ model Retweet {
   userId    String
   tweetId   String
   createdAt DateTime @default(now())
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  tweet     Tweet    @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tweetId])
   @@index([userId])
@@ -197,10 +177,9 @@ model Follow {
   followerId  String
   followingId String
   createdAt   DateTime @default(now())
-  status      String   @default("ACCEPTED") // ACCEPTED, PENDING
-
-  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
-  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  status      String   @default("ACCEPTED")
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId])
   @@index([followerId])
@@ -209,15 +188,14 @@ model Follow {
 }
 
 model Bookmark {
-  id           String   @id @default(cuid())
+  id           String              @id @default(cuid())
   userId       String
   tweetId      String
   collectionId String?
-  createdAt    DateTime @default(now())
-
-  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tweet      Tweet               @relation(fields: [tweetId], references: [id], onDelete: Cascade)
-  collection BookmarkCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  createdAt    DateTime            @default(now())
+  collection   BookmarkCollection? @relation(fields: [collectionId], references: [id])
+  tweet        Tweet               @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tweetId])
   @@index([userId])
@@ -227,14 +205,13 @@ model Bookmark {
 }
 
 model BookmarkCollection {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   userId    String
   name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   bookmarks Bookmark[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, name])
   @@index([userId])
@@ -242,26 +219,24 @@ model BookmarkCollection {
 }
 
 model TravelTag {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
+  id          String           @id @default(cuid())
+  name        String           @unique
+  slug        String           @unique
   description String?
-  createdAt   DateTime @default(now())
-
-  tweetTags TweetTravelTag[]
+  createdAt   DateTime         @default(now())
+  tweetTags   TweetTravelTag[]
 
   @@index([slug])
   @@map("TravelTag")
 }
 
 model TweetTravelTag {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tweetId     String
   travelTagId String
-  createdAt   DateTime @default(now())
-
-  tweet     Tweet     @relation(fields: [tweetId], references: [id], onDelete: Cascade)
-  travelTag TravelTag @relation(fields: [travelTagId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  travelTag   TravelTag @relation(fields: [travelTagId], references: [id], onDelete: Cascade)
+  tweet       Tweet     @relation(fields: [tweetId], references: [id], onDelete: Cascade)
 
   @@unique([tweetId, travelTagId])
   @@index([tweetId])
@@ -272,28 +247,25 @@ model TweetTravelTag {
 model TweetEmbedding {
   id        String   @id @default(cuid())
   tweetId   String   @unique
-  vector    Bytes // Stores FLOAT32_BLOB
+  vector    Bytes
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  tweet     Tweet    @relation(fields: [tweetId], references: [id], onDelete: Cascade)
 
   @@map("TweetEmbedding")
 }
 
-// NotificationType을 String으로 변경하여 유연성 확보 (LIKE, RETWEET, REPLY, FOLLOW, FOLLOW_REQUEST, FOLLOW_ACCEPTED)
 model Notification {
   id          String   @id @default(cuid())
   recipientId String
   issuerId    String
-  type        String // LIKE, RETWEET, REPLY, FOLLOW, FOLLOW_REQUEST, FOLLOW_ACCEPTED
+  type        String
   tweetId     String?
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
-
-  recipient User   @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
-  issuer    User   @relation("IssuedNotifications", fields: [issuerId], references: [id], onDelete: Cascade)
-  tweet     Tweet? @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  tweet       Tweet?   @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  issuer      User     @relation("IssuedNotifications", fields: [issuerId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([recipientId])
   @@index([issuerId])
@@ -302,26 +274,25 @@ model Notification {
 }
 
 model TravelPlan {
-  id          String    @id @default(cuid())
+  id          String           @id @default(cuid())
   userId      String
   title       String
   description String?
   startDate   DateTime?
   endDate     DateTime?
-  status      String    @default("PLANNING") // PLANNING, ONGOING, COMPLETED
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items  TravelPlanItem[]
-  tweets Tweet[]
+  status      String           @default("PLANNING")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       TravelPlanItem[]
+  tweets      Tweet[]
 
   @@index([userId])
   @@map("TravelPlan")
 }
 
 model TravelPlanItem {
-  id           String    @id @default(cuid())
+  id           String     @id @default(cuid())
   travelPlanId String
   title        String
   description  String?
@@ -330,34 +301,28 @@ model TravelPlanItem {
   locationName String?
   latitude     Float?
   longitude    Float?
-  status       String    @default("TODO") // TODO, IN_PROGRESS, DONE
-  order        Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  travelPlan TravelPlan @relation(fields: [travelPlanId], references: [id], onDelete: Cascade)
+  status       String     @default("TODO")
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  travelPlan   TravelPlan @relation(fields: [travelPlanId], references: [id], onDelete: Cascade)
 
   @@index([travelPlanId])
   @@map("TravelPlanItem")
 }
 
-// --- 3. 메시지 (Direct Messages) 테이블 ---
-
 model DirectMessage {
-  id                String   @id @default(cuid())
+  id                String         @id @default(cuid())
   conversationId    String
   senderId          String
   content           String
-  mediaUrl          String?
-  mediaType         String?
-  isRead            Boolean  @default(false)
-  deletedBySender   Boolean  @default(false)
-  deletedByReceiver Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  conversation DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User           @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  isRead            Boolean        @default(false)
+  deletedBySender   Boolean        @default(false)
+  deletedByReceiver Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  sender            User           @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  conversation      DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
   @@index([senderId])
@@ -366,16 +331,15 @@ model DirectMessage {
 }
 
 model DMConversation {
-  id            String   @id @default(cuid())
-  isGroup       Boolean  @default(false)
+  id            String          @id @default(cuid())
+  isGroup       Boolean         @default(false)
   groupName     String?
-  lastMessageAt DateTime @default(now())
-  isAccepted    Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  messages     DirectMessage[]
-  participants DMParticipant[]
+  lastMessageAt DateTime        @default(now())
+  isAccepted    Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  participants  DMParticipant[]
+  messages      DirectMessage[]
 
   @@index([lastMessageAt])
   @@index([isAccepted])
@@ -383,15 +347,14 @@ model DMConversation {
 }
 
 model DMParticipant {
-  id             String    @id @default(cuid())
+  id             String         @id @default(cuid())
   conversationId String
   userId         String
-  joinedAt       DateTime  @default(now())
+  joinedAt       DateTime       @default(now())
   leftAt         DateTime?
-  isAdmin        Boolean   @default(false)
-
-  conversation DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isAdmin        Boolean        @default(false)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   DMConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
   @@index([userId])
