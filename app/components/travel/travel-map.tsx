@@ -4,7 +4,6 @@ import { APIProvider, Map, Marker, InfoWindow, useMap } from "@vis.gl/react-goog
 import { useState, useEffect, useMemo, useRef } from "react";
 import { DateTime } from "luxon";
 import { cn } from "~/lib/utils";
-import { MarkerClusterer } from "@googlemaps/markerclusterer";
 
 interface TravelMapProps {
     tweets: any[];
@@ -91,14 +90,21 @@ export function TravelMap({ tweets, className }: TravelMapProps) {
 function Markers({ items, onMarkerClick }: { items: any[], onMarkerClick: (id: string) => void }) {
     const map = useMap();
     const [markers, setMarkers] = useState<{ [key: string]: google.maps.Marker }>({});
-    const clusterer = useRef<InstanceType<typeof MarkerClusterer> | null>(null);
+    const clusterer = useRef<any>(null);
 
-    // 클러스터러 초기화
+    // 클러스터러 초기화 (클라이언트에서만 동적 import)
     useEffect(() => {
-        if (!map) return;
-        if (!clusterer.current) {
-            clusterer.current = new MarkerClusterer({ map });
-        }
+        if (!map || typeof window === "undefined") return;
+        
+        // 동적 import로 클라이언트에서만 로드
+        import("@googlemaps/markerclusterer").then((pkg) => {
+            const { MarkerClusterer } = pkg;
+            if (!clusterer.current) {
+                clusterer.current = new MarkerClusterer({ map });
+            }
+        }).catch((error) => {
+            console.error("Failed to load MarkerClusterer:", error);
+        });
     }, [map]);
 
     // 마커가 변경될 때 클러스터러 업데이트

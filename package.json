@@ -21,7 +21,7 @@
     "@react-router/node": "7.10.1",
     "@react-router/serve": "7.10.1",
     "@vis.gl/react-google-maps": "^1.7.1",
-    "better-auth": "^1.4.9",
+    "better-auth": "^1.4.10",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.8.0",
     "clsx": "^2.1.1",
