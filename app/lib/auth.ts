@@ -35,7 +35,9 @@ if (process.env.KAKAO_CLIENT_ID && process.env.KAKAO_CLIENT_SECRET) {
 // baseURL이 없으면 런타임에 현재 요청의 origin을 사용하도록 설정
 const baseURL = normalizeUrl(process.env.BETTER_AUTH_URL);
 
-let auth;
+// auth 변수를 명시적으로 타입 선언
+let auth: ReturnType<typeof betterAuth>;
+
 try {
     auth = betterAuth({
         database: drizzleAdapter(db, {

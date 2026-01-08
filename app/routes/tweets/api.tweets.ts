@@ -166,25 +166,8 @@ export async function action({ request }: ActionFunctionArgs) {
                 parentId: formData.get("parentId") || undefined,
                 media: formData.get("media") || undefined,
                 tags: formData.get("tags") || undefined,
-                travelPlanId: (formData.get("travelPlanId") as string) || undefined,
-                id: (formData.get("id") as string) || undefined, // Idempotency Key
+                travelPlanId: formData.get("travelPlanId") || undefined,
             };
-
-            // Idempotency Check: 클라이언트가 ID를 제공한 경우, 이미 존재하는지 확인
-            if (payload.id) {
-                const existingTweet = await db.query.tweets.findFirst({
-                    where: (tweets, { eq }) => eq(tweets.id, payload.id as string),
-                    with: {
-                        user: true,
-                        media: true,
-                        tags: { with: { travelTag: true } }
-                    }
-                });
-
-                if (existingTweet) {
-                    return data({ success: true, tweet: existingTweet, message: "이미 등록된 트윗입니다." }, { status: 200 });
-                }
-            }
 
             const validatedData = createTweetSchema.parse(payload);
 
@@ -277,7 +260,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 }
             }
 
-            const tweetId = (payload.id as string) || crypto.randomUUID();
+            const tweetId = crypto.randomUUID();
 
             const tweet = await db.transaction(async (tx) => {
                 // 1. 트윗 삽입
@@ -389,15 +372,7 @@ export async function action({ request }: ActionFunctionArgs) {
             // AI 임베딩 생성
             try {
                 const embeddingText = `${tweet.content} ${tweet.tags.map(t => t.travelTag.name).join(" ")}`;
-
-                // 타임아웃 3초 설정: Vercel 함수 실행 시간 초과 방지 (중복 트윗 원인)
-                const vector = await Promise.race([
-                    generateEmbedding(embeddingText),
-                    new Promise<number[]>((_, reject) =>
-                        setTimeout(() => reject(new Error("Embedding generation timed out")), 3000)
-                    )
-                ]);
-
+                const vector = await generateEmbedding(embeddingText);
                 await db.insert(schema.tweetEmbeddings).values({
                     id: crypto.randomUUID(),
                     tweetId: tweet.id,
@@ -406,8 +381,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 });
 
             } catch (e) {
-                // 임베딩 실패해도 트윗은 성공으로 처리 (사용자 경험 우선)
-                console.error("Embedding Generation Error or Timeout (Skipped):", e);
+                console.error("Embedding Generation Error:", e);
             }
 
             return data({ success: true, tweet }, { status: 201 });
@@ -642,14 +616,7 @@ export async function action({ request }: ActionFunctionArgs) {
             try {
                 const updatedTags = updatedTweet.tags.map(t => t.travelTag.name).join(" ");
                 const embeddingText = `${updatedTweet.content} ${updatedTags}`;
-
-                // 타임아웃 3초 설정
-                const vector = await Promise.race([
-                    generateEmbedding(embeddingText),
-                    new Promise<number[]>((_, reject) =>
-                        setTimeout(() => reject(new Error("Embedding generation timed out")), 3000)
-                    )
-                ]);
+                const vector = await generateEmbedding(embeddingText);
 
                 await db.insert(schema.tweetEmbeddings)
                     .values({
@@ -667,7 +634,7 @@ export async function action({ request }: ActionFunctionArgs) {
                     });
 
             } catch (e) {
-                console.error("Embedding Update Error or Timeout (Skipped):", e);
+                console.error("Embedding Update Error:", e);
             }
 
             return data({ success: true, tweet: updatedTweet, message: "트윗이 수정되었습니다." }, { status: 200 });
