@@ -2,10 +2,7 @@ import { APIProvider, Map, Marker, InfoWindow, useMap } from "@vis.gl/react-goog
 import { useState, useEffect, useMemo, useRef } from "react";
 import { DateTime } from "luxon";
 import { cn } from "~/lib/utils";
-import * as MarkerClustererLib from "@googlemaps/markerclusterer";
-
-// Handle both CommonJS (Dev) and ESM (Prod) module formats
-const MarkerClusterer = MarkerClustererLib.MarkerClusterer || (MarkerClustererLib as any).default?.MarkerClusterer;
+import { MarkerClusterer } from "@googlemaps/markerclusterer";
 
 interface TravelMapProps {
     tweets: any[];
@@ -92,7 +89,7 @@ export function TravelMap({ tweets, className }: TravelMapProps) {
 function Markers({ items, onMarkerClick }: { items: any[], onMarkerClick: (id: string) => void }) {
     const map = useMap();
     const [markers, setMarkers] = useState<{ [key: string]: google.maps.Marker }>({});
-    const clusterer = useRef<any>(null);
+    const clusterer = useRef<MarkerClusterer | null>(null);
 
     // 클러스터러 초기화
     useEffect(() => {
