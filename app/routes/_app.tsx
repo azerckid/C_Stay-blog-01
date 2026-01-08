@@ -1,3 +1,5 @@
+"use client";
+
 import { Outlet, useLoaderData } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { MainLayout } from "~/components/layout/main-layout";
