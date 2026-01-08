@@ -1,5 +1,7 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq, and, desc, count } from "drizzle-orm";
 import { getSession } from "~/lib/auth-utils.server";
 import { z } from "zod";
 
@@ -14,13 +16,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const cursor = url.searchParams.get("cursor");
     const limit = 20;
 
-    const notifications = await prisma.notification.findMany({
-        where: { recipientId: userId },
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
+    const notificationsData = await db.query.notifications.findMany({
+        where: (notifications, { eq }) => eq(notifications.recipientId, userId),
+        limit: limit,
+        orderBy: (notifications, { desc }) => [desc(notifications.createdAt)],
+        with: {
             issuer: {
-                select: {
+                columns: {
                     id: true,
                     name: true,
                     image: true,
@@ -28,7 +30,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 }
             },
             tweet: {
-                select: {
+                columns: {
                     id: true,
                     content: true,
                 }
@@ -36,11 +38,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
         }
     });
 
-    const unreadCount = await prisma.notification.count({
-        where: { recipientId: userId, isRead: false }
-    });
+    const [{ count: unreadCount }] = await db
+        .select({ count: count() })
+        .from(schema.notifications)
+        .where(and(eq(schema.notifications.recipientId, userId), eq(schema.notifications.isRead, false)));
 
-    return data({ notifications, unreadCount });
+    return data({ notifications: notificationsData, unreadCount });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -58,16 +61,14 @@ export async function action({ request }: ActionFunctionArgs) {
 
             if (notificationId) {
                 // 단일 알림 읽음 처리
-                await prisma.notification.update({
-                    where: { id: notificationId, recipientId: userId },
-                    data: { isRead: true }
-                });
+                await db.update(schema.notifications)
+                    .set({ isRead: true })
+                    .where(and(eq(schema.notifications.id, notificationId), eq(schema.notifications.recipientId, userId)));
             } else {
                 // 모든 알림 읽음 처리
-                await prisma.notification.updateMany({
-                    where: { recipientId: userId, isRead: false },
-                    data: { isRead: true }
-                });
+                await db.update(schema.notifications)
+                    .set({ isRead: true })
+                    .where(and(eq(schema.notifications.recipientId, userId), eq(schema.notifications.isRead, false)));
             }
 
             return data({ success: true });
@@ -85,15 +86,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
             if (type === "all") {
                 // 모든 알림 삭제
-                await prisma.notification.deleteMany({
-                    where: { recipientId: userId }
-                });
+                await db.delete(schema.notifications)
+                    .where(eq(schema.notifications.recipientId, userId));
                 return data({ success: true, message: "모든 알림이 삭제되었습니다." });
             } else if (notificationId) {
                 // 단일 알림 삭제
-                await prisma.notification.delete({
-                    where: { id: notificationId, recipientId: userId }
-                });
+                await db.delete(schema.notifications)
+                    .where(and(eq(schema.notifications.id, notificationId), eq(schema.notifications.recipientId, userId)));
                 return data({ success: true, message: "알림이 삭제되었습니다." });
             }
 
@@ -101,7 +100,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
         } catch (error) {
             console.error("Notification delete error:", error);
-            // Record not found handled by Prisma normally throws, we can catch specific P2025 if needed but general error is fine
+            // Record not found: Drizzle throws error if record doesn't exist, general error handling is sufficient
             return data({ error: "알림 삭제 중 오류가 발생했습니다." }, { status: 500 });
         }
     }

@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq, and, or, not, desc, isNull, inArray, count, sql } from "drizzle-orm";
 import { pusher } from "~/lib/pusher.server";
 import { getUserChannelId } from "~/lib/pusher-shared";
 import { DateTime } from "luxon";
@@ -30,67 +32,85 @@ export async function loader({ request }: LoaderFunctionArgs) {
         const tab = url.searchParams.get("tab") || "all"; // "all" | "requests"
 
         // 현재 사용자가 참여한 대화방 조회
-        const participants = await prisma.dMParticipant.findMany({
-            where: {
-                userId,
-                leftAt: null, // 나가지 않은 대화만
-            },
-            include: {
+        const participantRows = await db.query.dmParticipants.findMany({
+            where: (p, { eq, isNull, and }) => and(eq(p.userId, userId), isNull(p.leftAt)),
+            with: {
                 conversation: {
-                    include: {
+                    with: {
                         participants: {
-                            where: { userId: { not: userId }, leftAt: null }, // 상대방만 (나가지 않은)
-                            include: {
+                            where: (p, { isNull, ne }) => and(ne(p.userId, userId), isNull(p.leftAt)),
+                            with: {
                                 user: {
-                                    select: {
+                                    columns: {
                                         id: true,
                                         name: true,
                                         email: true,
                                         image: true,
                                         avatarUrl: true,
                                         isPrivate: true,
-                                    },
-                                },
-                            },
+                                    }
+                                }
+                            }
                         },
                         messages: {
-                            orderBy: { createdAt: "desc" },
-                            take: 1, // 마지막 메시지 1개만
-                            include: {
+                            orderBy: (params, { desc }) => [desc(params.createdAt)],
+                            limit: 1,
+                            with: {
                                 sender: {
-                                    select: {
+                                    columns: {
                                         id: true,
                                         name: true,
-                                        email: true,
-                                    },
-                                },
-                            },
-                        },
-                        _count: {
-                            select: {
-                                messages: {
-                                    where: {
-                                        isRead: false,
-                                        senderId: { not: userId },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
+                                        email: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             },
-            orderBy: {
-                conversation: {
-                    lastMessageAt: "desc",
-                },
-            },
+            orderBy: (p, { desc }) => [desc(p.joinedAt)] // Approximation, ideally sort by conversation.lastMessageAt
         });
 
-        // 필터링: tab에 따라 isAccepted 값으로 필터
-        let filteredConversations = participants.map((p) => ({
+        // Sort by lastMessageAt manually as deep sort in relation is hard
+        participantRows.sort((a, b) => {
+            const dateA = new Date(a.conversation.lastMessageAt).getTime();
+            const dateB = new Date(b.conversation.lastMessageAt).getTime();
+            return dateB - dateA;
+        });
+
+        // Calculate unread counts separately or map. 
+        // For unread counts, doing N queries is bad, but for now we will do a separate count query per conversation
+        // or a single aggregated query if possible.
+        // Let's simplified approach: fetch unread counts for all conversations user is in.
+
+        const conversationIds = participantRows.map(p => p.conversationId);
+        let unreadCountsMap: Record<string, number> = {};
+
+        if (conversationIds.length > 0) {
+            const unreadCounts = await db.select({
+                conversationId: schema.directMessages.conversationId,
+                count: count()
+            })
+                .from(schema.directMessages)
+                .where(and(
+                    inArray(schema.directMessages.conversationId, conversationIds),
+                    eq(schema.directMessages.isRead, false),
+                    not(eq(schema.directMessages.senderId, userId))
+                ))
+                .groupBy(schema.directMessages.conversationId);
+
+            unreadCounts.forEach(c => {
+                unreadCountsMap[c.conversationId as string] = c.count;
+            });
+        }
+
+        const conversations = participantRows.map(p => ({
             ...p.conversation,
-            unreadCount: p.conversation._count.messages,
+            unreadCount: unreadCountsMap[p.conversationId] || 0
         }));
+
+        // 필터링: tab에 따라 isAccepted 값으로 필터
+        let filteredConversations = conversations;
 
         if (tab === "requests") {
             // 요청 탭: 수락되지 않았고, 마지막 메시지를 '다른 사람'이 보낸 경우 (내가 받은 요청)
@@ -116,14 +136,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 isGroup: conv.isGroup,
                 groupName: conv.groupName,
                 isAccepted: conv.isAccepted,
-                lastMessageAt: conv.lastMessageAt.toISOString(),
-                createdAt: conv.createdAt.toISOString(),
+                lastMessageAt: conv.lastMessageAt,
+                createdAt: conv.createdAt,
                 unreadCount: conv.unreadCount,
                 participants: otherParticipants.map((p) => ({
                     id: p.id,
                     conversationId: p.conversationId,
                     userId: p.userId,
-                    joinedAt: p.joinedAt.toISOString(),
+                    joinedAt: p.joinedAt,
                     isAdmin: p.isAdmin,
                     user: {
                         id: p.user.id,
@@ -139,10 +159,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
                         content: lastMessage.content,
                         senderId: lastMessage.senderId,
                         senderName: lastMessage.sender.name || "알 수 없음",
-                        createdAt: DateTime.fromJSDate(lastMessage.createdAt)
+                        createdAt: DateTime.fromISO(lastMessage.createdAt)
                             .setLocale("ko")
                             .toRelative() || "방금 전",
-                        fullCreatedAt: DateTime.fromJSDate(lastMessage.createdAt)
+                        fullCreatedAt: DateTime.fromISO(lastMessage.createdAt)
                             .setLocale("ko")
                             .toLocaleString(DateTime.DATETIME_MED),
                         isRead: lastMessage.isRead,
@@ -195,99 +215,117 @@ export async function action({ request }: ActionFunctionArgs) {
             const otherUserId = uniqueUserIds[0];
 
             // 양쪽 모두 참여한 1:1 대화 찾기
-            const existingConv = await prisma.dMConversation.findFirst({
-                where: {
-                    isGroup: false,
-                    AND: [
-                        {
-                            participants: {
-                                some: { userId },
-                            },
-                        },
-                        {
-                            participants: {
-                                some: { userId: otherUserId },
-                            },
-                        },
-                    ],
-                },
-                include: {
-                    participants: {
-                        where: { leftAt: null }, // 나가지 않은 참여자만
-                        include: {
-                            user: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    email: true,
-                                    image: true,
-                                    avatarUrl: true,
-                                    isPrivate: true,
-                                    _count: {
-                                        select: { followedBy: true },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            });
+            // Find shared conversation IDs
+            const myConvos = await db.select({ id: schema.dmParticipants.conversationId })
+                .from(schema.dmParticipants)
+                .where(and(eq(schema.dmParticipants.userId, userId), isNull(schema.dmParticipants.leftAt)));
 
-            // 정확히 2명만 참여하고, 양쪽 모두 나가지 않은 경우
-            if (existingConv && existingConv.participants.length === 2) {
-                const participantIds = existingConv.participants.map((p) => p.userId);
-                if (participantIds.includes(userId) && participantIds.includes(otherUserId)) {
-                    // 클라이언트 포맷으로 변환하여 반환
-                    const formattedConv = {
-                        ...existingConv,
-                        participants: existingConv.participants.map(p => ({
-                            ...p,
-                            user: {
-                                ...p.user,
-                                image: p.user.image || p.user.avatarUrl,
-                                // 날짜 포맷팅 등 필요한 추가 처리가 있다면 여기서
+            const otherConvos = await db.select({ id: schema.dmParticipants.conversationId })
+                .from(schema.dmParticipants)
+                .where(and(eq(schema.dmParticipants.userId, otherUserId), isNull(schema.dmParticipants.leftAt)));
+
+            const validConvoIds = myConvos
+                .map(c => c.id)
+                .filter(id => otherConvos.map(oc => oc.id).includes(id));
+
+            if (validConvoIds.length > 0) {
+                // Check if any is strict 1:1 (non-group)
+                const existingConv = await db.query.dmConversations.findFirst({
+                    where: (c, { inArray, and, eq }) =>
+                        and(
+                            inArray(c.id, validConvoIds),
+                            eq(c.isGroup, false)
+                        ),
+                    with: {
+                        participants: {
+                            where: (p, { isNull }) => isNull(p.leftAt),
+                            with: {
+                                user: true
                             }
-                        }))
-                    };
+                        }
+                    }
+                });
 
-                    return data({
-                        success: true,
-                        conversation: formattedConv,
-                    });
+                // 정확히 2명만 참여하고, 양쪽 모두 나가지 않은 경우
+                if (existingConv && existingConv.participants.length === 2) {
+                    const params = existingConv.participants.map((p) => p.userId);
+                    if (params.includes(userId) && params.includes(otherUserId)) {
+                        // 클라이언트 포맷으로 변환하여 반환
+                        const formattedConv = {
+                            ...existingConv,
+                            participants: existingConv.participants.map((p: any) => ({
+                                ...p,
+                                user: {
+                                    ...p.user,
+                                    image: p.user.image || p.user.avatarUrl,
+                                }
+                            }))
+                        };
+
+                        return data({
+                            success: true,
+                            conversation: formattedConv,
+                        });
+                    }
                 }
             }
         }
 
         // 새 대화 생성
-        const conversation = await prisma.dMConversation.create({
-            data: {
-                isGroup,
+        const conversationId = crypto.randomUUID();
+        const now = new Date().toISOString();
+
+        await db.transaction(async (tx) => {
+            // 1. Conversation Create
+            await tx.insert(schema.dmConversations).values({
+                id: conversationId,
+                isGroup: isGroup,
                 groupName: isGroup ? groupName || null : null,
-                isAccepted: false, // 초기에는 요청 상태
+                isAccepted: false,
+                lastMessageAt: now,
+                createdAt: now,
+                updatedAt: now
+            });
+
+            // 2. Participants Create
+            const participantsData = [
+                { userId, isAdmin: isGroup },
+                ...uniqueUserIds.map((uid) => ({ userId: uid, isAdmin: false }))
+            ];
+
+            for (const p of participantsData) {
+                await tx.insert(schema.dmParticipants).values({
+                    id: crypto.randomUUID(),
+                    conversationId: conversationId,
+                    userId: p.userId,
+                    isAdmin: p.isAdmin,
+                    joinedAt: now
+                });
+            }
+        });
+
+        // 3. Fetch created conversation for response and pusher
+        const conversation = await db.query.dmConversations.findFirst({
+            where: (c, { eq }) => eq(c.id, conversationId),
+            with: {
                 participants: {
-                    create: [
-                        { userId, isAdmin: isGroup }, // 그룹이면 생성자가 관리자
-                        ...uniqueUserIds.map((uid) => ({ userId: uid, isAdmin: false })),
-                    ],
-                },
-            },
-            include: {
-                participants: {
-                    include: {
+                    with: {
                         user: {
-                            select: {
+                            columns: {
                                 id: true,
                                 name: true,
                                 email: true,
                                 image: true,
                                 avatarUrl: true,
-                                isPrivate: true,
-                            },
-                        },
-                    },
-                },
-            },
+                                isPrivate: true
+                            }
+                        }
+                    }
+                }
+            }
         });
+
+        if (!conversation) throw new Error("Conversation creation failed");
 
         // Pusher 이벤트: 새 대화 생성 알림을 참여자들에게 전송
         try {
@@ -310,7 +348,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 isGroup: conversation.isGroup,
                 groupName: conversation.groupName,
                 isAccepted: conversation.isAccepted,
-                participants: conversation.participants.map((p) => ({
+                participants: conversation.participants.map((p: any) => ({
                     id: p.user.id,
                     name: p.user.name || "알 수 없음",
                     username: p.user.email.split("@")[0],

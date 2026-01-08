@@ -1,11 +1,15 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { travelTags, tweets, tweetTravelTags } from "~/db/schema";
+import { eq, and, isNull, inArray, desc } from "drizzle-orm";
 import { DateTime } from "luxon";
+import { getSession } from "~/lib/auth-utils.server";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { TweetCard } from "~/components/tweet/tweet-card";
-import { getSession } from "~/lib/auth-utils.server";
+import { TravelMap } from "~/components/travel/travel-map";
+import { useMemo } from "react";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
     const slug = params.slug;
@@ -17,10 +21,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }
 
     // 태그 검색 (slug 또는 name으로 검색)
-    // slug는 unique가 아닐 수도 있으므로 findFirst 사용 (schema 확인 필요하지만 안전하게)
     // TravelTag schema: slug String @unique
-    const tag = await prisma.travelTag.findUnique({
-        where: { slug: decodeURIComponent(slug) }
+    const tag = await db.query.travelTags.findFirst({
+        where: eq(travelTags.slug, decodeURIComponent(slug))
     });
 
     if (!tag) {
@@ -28,39 +31,34 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }
 
     // 해당 태그가 포함된 트윗 검색
-    const tweets = await prisma.tweet.findMany({
-        where: {
-            deletedAt: null,
-            parentId: null,
-            tags: {
-                some: {
-                    travelTagId: tag.id
-                }
-            }
-        },
-        orderBy: { createdAt: "desc" },
-        include: {
+    const foundTweets = await db.query.tweets.findMany({
+        where: and(
+            isNull(tweets.deletedAt),
+            isNull(tweets.parentId),
+            inArray(
+                tweets.id,
+                db.select({ tweetId: tweetTravelTags.tweetId })
+                    .from(tweetTravelTags)
+                    .where(eq(tweetTravelTags.travelTagId, tag.id))
+            )
+        ),
+        orderBy: [desc(tweets.createdAt)],
+        with: {
             user: true,
             media: true,
-            _count: {
-                select: {
-                    likes: true,
-                    replies: true,
-                    retweets: true,
-                }
-            },
-            likes: userId ? { where: { userId }, select: { userId: true } } : false,
-            retweets: userId ? { where: { userId }, select: { userId: true } } : false,
-            bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
-            tags: { include: { travelTag: true } }
+            likes: { columns: { userId: true } },
+            replies: { columns: { id: true } },
+            retweets: { columns: { userId: true } },
+            bookmarks: userId ? { where: (b, { eq }) => eq(b.userId, userId), columns: { userId: true } } : undefined,
+            tags: { with: { travelTag: true } }
         }
     });
 
-    const formattedTweets = tweets.map(tweet => ({
+    const formattedTweets = foundTweets.map(tweet => ({
         id: tweet.id,
         content: tweet.content,
-        createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-        fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+        createdAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+        fullCreatedAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
         user: {
             id: tweet.user.id,
             name: tweet.user.name || "알 수 없음",
@@ -74,20 +72,20 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             altText: m.altText
         })),
         stats: {
-            likes: tweet._count.likes,
-            replies: tweet._count.replies,
-            retweets: tweet._count.retweets,
+            likes: tweet.likes.length,
+            replies: tweet.replies.length,
+            retweets: tweet.retweets.length,
             views: "0",
         },
-        isLiked: tweet.likes && tweet.likes.length > 0,
-        isRetweeted: tweet.retweets && tweet.retweets.length > 0,
-        isBookmarked: tweet.bookmarks && tweet.bookmarks.length > 0,
+        isLiked: tweet.likes.some(l => l.userId === userId),
+        isRetweeted: tweet.retweets.some(r => r.userId === userId),
+        isBookmarked: (tweet.bookmarks?.length ?? 0) > 0,
         location: tweet.locationName ? {
             name: tweet.locationName,
             latitude: tweet.latitude || undefined,
             longitude: tweet.longitude || undefined,
         } : undefined,
-        travelDate: tweet.travelDate?.toISOString(),
+        travelDate: tweet.travelDate, // Already string
         tags: tweet.tags.map(t => ({
             id: t.travelTag.id,
             name: t.travelTag.name,
@@ -107,13 +105,6 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => {
         { name: "description", content: `#${data.tag.name} 태그가 포함된 트윗 모음` },
     ];
 };
-
-import { TravelMap } from "~/components/travel/travel-map";
-import { useMemo } from "react";
-
-// ... (previous imports)
-
-// ... (loader and meta remain same)
 
 export default function TagFeed() {
     const { tag, tweets } = useLoaderData<typeof loader>();

@@ -1,6 +1,7 @@
 import { type ActionFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { eq, and } from "drizzle-orm";
 import { pusher } from "~/lib/pusher.server";
 import { getConversationChannelId } from "~/lib/pusher-shared";
 import { z } from "zod";
@@ -32,23 +33,22 @@ export async function action({ request, params }: ActionFunctionArgs) {
         }
 
         // 현재 사용자가 참여한 대화인지 확인
-        const participant = await prisma.dMParticipant.findUnique({
-            where: {
-                conversationId_userId: {
-                    conversationId,
-                    userId,
-                },
-            },
-            include: {
+        const participant = await db.query.dmParticipants.findFirst({
+            where: (p, { and, eq }) =>
+                and(
+                    eq(p.conversationId, conversationId),
+                    eq(p.userId, userId)
+                ),
+            with: {
                 conversation: {
-                    include: {
+                    with: {
                         participants: {
-                            where: { leftAt: null },
-                            select: { userId: true },
-                        },
-                    },
-                },
-            },
+                            where: (p, { isNull }) => isNull(p.leftAt),
+                            columns: { userId: true }
+                        }
+                    }
+                }
+            }
         });
 
         if (!participant || participant.leftAt !== null) {

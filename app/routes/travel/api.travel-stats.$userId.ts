@@ -1,6 +1,8 @@
 import { data } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { tweets } from "~/db/schema";
+import { eq, and, isNotNull, or, desc, isNull } from "drizzle-orm";
 
 export async function loader({ params }: LoaderFunctionArgs) {
     const { userId } = params;
@@ -10,25 +12,23 @@ export async function loader({ params }: LoaderFunctionArgs) {
     }
 
     // 사용자의 모든 여행 트윗 조회 (위치 정보가 있는 트윗만)
-    const travelTweets = await prisma.tweet.findMany({
-        where: {
-            userId,
-            deletedAt: null,
-            OR: [
-                { country: { not: null } },
-                { city: { not: null } }
-            ]
-        },
-        select: {
+    const travelTweets = await db.query.tweets.findMany({
+        where: and(
+            eq(tweets.userId, userId),
+            isNull(tweets.deletedAt),
+            or(
+                isNotNull(tweets.country),
+                isNotNull(tweets.city)
+            )
+        ),
+        columns: {
             id: true,
             country: true,
             city: true,
             travelDate: true,
             createdAt: true,
         },
-        orderBy: {
-            travelDate: "desc"
-        }
+        orderBy: [desc(tweets.travelDate)]
     });
 
     // 방문 국가 집계

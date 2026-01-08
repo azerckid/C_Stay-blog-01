@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
 import { getSession } from "~/lib/auth-utils.server";
+import { db } from "~/db";
+import { travelPlans } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const updateTravelPlanSchema = z.object({
@@ -22,9 +24,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
         return data({ error: "잘못된 접근입니다." }, { status: 400 });
     }
 
-    const travelPlan = await prisma.travelPlan.findUnique({
-        where: { id },
-        select: { userId: true }
+    const travelPlan = await db.query.travelPlans.findFirst({
+        where: eq(travelPlans.id, id),
+        columns: { userId: true }
     });
 
     if (!travelPlan) {
@@ -48,16 +50,17 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
             const validated = updateTravelPlanSchema.parse(rawData);
 
-            const updatedPlan = await prisma.travelPlan.update({
-                where: { id },
-                data: {
+            const [updatedPlan] = await db.update(travelPlans)
+                .set({
                     title: validated.title,
                     description: validated.description,
-                    startDate: validated.startDate ? new Date(validated.startDate) : null,
-                    endDate: validated.endDate ? new Date(validated.endDate) : null,
+                    startDate: validated.startDate ? new Date(validated.startDate).toISOString() : null,
+                    endDate: validated.endDate ? new Date(validated.endDate).toISOString() : null,
                     status: validated.status,
-                }
-            });
+                    updatedAt: new Date().toISOString()
+                })
+                .where(eq(travelPlans.id, id))
+                .returning();
 
             return data({ travelPlan: updatedPlan });
         } catch (error) {
@@ -71,9 +74,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
     if (request.method === "DELETE") {
         try {
-            await prisma.travelPlan.delete({
-                where: { id }
-            });
+            await db.delete(travelPlans).where(eq(travelPlans.id, id));
             return data({ success: true });
         } catch (error) {
             console.error("Failed to delete travel plan:", error);

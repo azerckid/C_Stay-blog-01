@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq, and, not, count, sql } from "drizzle-orm";
 import { pusher } from "~/lib/pusher.server";
 import { getConversationChannelId, getUserChannelId } from "~/lib/pusher-shared";
 import { z } from "zod";
@@ -36,14 +38,14 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         const userId = session.user.id;
-        
+
         // Content-Type 확인
         const contentType = request.headers.get("content-type");
         if (!contentType || !contentType.includes("application/json")) {
             console.error("[API] Invalid content-type:", contentType);
             return data({ error: "Content-Type must be application/json" }, { status: 400 });
         }
-        
+
         let body;
         try {
             body = await request.json();
@@ -55,7 +57,7 @@ export async function action({ request }: ActionFunctionArgs) {
         // 스키마 검증
         const validated = sendMessageSchema.parse(body);
         const { conversationId, content, mediaUrl, mediaType } = validated;
-        
+
         // content가 undefined이면 빈 문자열로 변환
         const finalContent = content ?? "";
 
@@ -68,14 +70,10 @@ export async function action({ request }: ActionFunctionArgs) {
         });
 
         // 현재 사용자가 참여한 대화인지 확인
-        const participant = await prisma.dMParticipant.findUnique({
-            where: {
-                conversationId_userId: {
-                    conversationId,
-                    userId,
-                },
-            },
-            include: {
+        const participant = await db.query.dmParticipants.findFirst({
+            where: (participants, { eq, and }) =>
+                and(eq(participants.conversationId, conversationId), eq(participants.userId, userId)),
+            with: {
                 conversation: true,
             },
         });
@@ -92,60 +90,62 @@ export async function action({ request }: ActionFunctionArgs) {
         const isAccepted = participant.conversation.isAccepted || false;
         if (!isAccepted) {
             // 상대방이 보낸 메시지가 있는지 확인
-            const otherMessagesCount = await prisma.directMessage.count({
-                where: {
-                    conversationId,
-                    senderId: { not: userId },
-                },
-            });
+            const [{ count: otherMessagesCount }] = await db
+                .select({ count: count() })
+                .from(schema.directMessages)
+                .where(
+                    and(
+                        eq(schema.directMessages.conversationId, conversationId),
+                        not(eq(schema.directMessages.senderId, userId))
+                    )
+                );
 
             if (otherMessagesCount > 0) {
-                await prisma.dMConversation.update({
-                    where: { id: conversationId },
-                    data: { isAccepted: true },
-                });
+                await db.update(schema.dmConversations)
+                    .set({ isAccepted: true })
+                    .where(eq(schema.dmConversations.id, conversationId));
             }
         }
 
-        // 메시지 생성
-        console.log("[API] Creating message with:", {
-            mediaUrl: mediaUrl || "(none)",
-            mediaType: mediaType || "(none)",
+        const messageId = crypto.randomUUID();
+        const now = new Date().toISOString();
+
+        await db.insert(schema.directMessages).values({
+            id: messageId,
+            conversationId,
+            senderId: userId,
+            content: finalContent,
+            mediaUrl: mediaUrl || null,
+            mediaType: mediaType || null,
+            isRead: false,
+            createdAt: now,
+            updatedAt: now,
         });
-        
-        const message = await prisma.directMessage.create({
-            data: {
-                conversationId,
-                senderId: userId,
-                content: finalContent,
-                mediaUrl: mediaUrl || null,
-                mediaType: mediaType || null,
-                isRead: false,
+
+        const message = await db.query.directMessages.findFirst({
+            where: (messages, { eq }) => eq(messages.id, messageId),
+            with: {
+                sender: true,
             },
-            include: {
-                sender: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        image: true,
-                        avatarUrl: true,
-                    },
+        });
+
+        if (!message) throw new Error("Message creation failed");
+
+        // 대화방의 lastMessageAt 업데이트 및 참여자 조회
+        await db.update(schema.dmConversations)
+            .set({ lastMessageAt: now, updatedAt: now })
+            .where(eq(schema.dmConversations.id, conversationId));
+
+        const updatedConversation = await db.query.dmConversations.findFirst({
+            where: (convs, { eq }) => eq(convs.id, conversationId),
+            with: {
+                participants: {
+                    where: (p, { isNull }) => isNull(p.leftAt),
                 },
             },
         });
 
-        // 대화방의 lastMessageAt 업데이트 및 참여자 조회
-        const updatedConversation = await prisma.dMConversation.update({
-            where: { id: conversationId },
-            data: { lastMessageAt: message.createdAt },
-            include: {
-                participants: {
-                    where: { leftAt: null },
-                    select: { userId: true },
-                },
-            },
-        });
+        if (!updatedConversation) throw new Error("Conversation update failed");
 
         // Pusher 이벤트 트리거: 대화방 채널에 새 메시지 알림
         const formattedMessage = {
@@ -159,7 +159,7 @@ export async function action({ request }: ActionFunctionArgs) {
                 image: message.sender.image || message.sender.avatarUrl,
             },
             isRead: message.isRead,
-            createdAt: message.createdAt.toISOString(),
+            createdAt: message.createdAt,
             mediaUrl: message.mediaUrl,
             mediaType: message.mediaType,
         };

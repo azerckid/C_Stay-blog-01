@@ -1,7 +1,9 @@
 import { type LoaderFunctionArgs, type MetaFunction, useLoaderData, data, Link, useSearchParams } from "react-router";
 import { useState, useEffect } from "react";
 import { auth } from "~/lib/auth";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq, and, or, not, isNull, isNotNull, count, sql, desc, inArray } from "drizzle-orm";
 import { FollowButton } from "~/components/user/follow-button";
 import { TweetCard } from "~/components/tweet/tweet-card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
@@ -33,23 +35,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const userId = params.userId;
     if (!userId) throw new Response("User ID Required", { status: 400 });
 
-    const profileUser = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-            _count: {
-                select: {
-                    followedBy: { where: { status: "ACCEPTED" } }, // 승인된 팔로워 수만 카운트
-                    following: { where: { status: "ACCEPTED" } }, // 승인된 팔로잉 수만 카운트
-                    tweets: true,
-                }
-            },
+    const profileUser = await db.query.users.findFirst({
+        where: (users, { eq }) => eq(users.id, userId),
+        with: {
             followedBy: {
-                where: {
-                    followerId: session?.user?.id || "",
-                },
-                select: {
+                where: (follows, { eq }) => eq(follows.followerId, session?.user?.id || ""),
+                columns: {
                     id: true,
-                    status: true, // 팔로우 상태 확인 (ACCEPTED | PENDING)
+                    status: true,
                 }
             }
         }
@@ -59,123 +52,141 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         throw new Response("User Not Found", { status: 404 });
     }
 
+    // Counts with filters
+    const [{ followerCount, followingCount, tweetCount }] = await db.select({
+        followerCount: sql<number>`(SELECT COUNT(*) FROM "Follow" WHERE "followingId" = ${userId} AND "status" = 'ACCEPTED')`,
+        followingCount: sql<number>`(SELECT COUNT(*) FROM "Follow" WHERE "followerId" = ${userId} AND "status" = 'ACCEPTED')`,
+        tweetCount: sql<number>`(SELECT COUNT(*) FROM "Tweet" WHERE "userId" = ${userId} AND "deletedAt" IS NULL)`,
+    }).from(schema.users).where(eq(schema.users.id, userId));
+
+    const profileUserWithCount = {
+        ...profileUser,
+        _count: {
+            followedBy: followerCount || 0,
+            following: followingCount || 0,
+            tweets: tweetCount || 0,
+        }
+    };
+
     const isCurrentUser = session?.user?.id === profileUser.id;
-    // Follow relationship check
-    const followRecord = profileUser.followedBy[0];
+    const followRecord = profileUser.followedBy?.[0];
     const isFollowing = followRecord?.status === "ACCEPTED";
     const isPending = followRecord?.status === "PENDING";
 
-    // Access Control Logic
-    // Private account logic: Visible if (Not Private) OR (Is Current User) OR (Is Following)
-    const canViewProfile = !(profileUser as any).isPrivate || isCurrentUser || isFollowing;
+    const canViewProfile = !profileUser.isPrivate || isCurrentUser || isFollowing;
 
-    let tweets: any[] = [];
+    let tweetsData: any[] = [];
 
     if (canViewProfile) {
-        const tweetInclude = {
+        const baseWith = {
             user: true,
-            likes: { where: { userId: session?.user?.id || "" } },
-            retweets: { where: { userId: session?.user?.id || "" } },
-            bookmarks: { where: { userId: session?.user?.id || "" } },
             media: true,
-            tags: { include: { travelTag: true } },
-            _count: { select: { likes: true, retweets: true, replies: true } },
-        };
-
-        const commonInclude = {
-            ...tweetInclude,
-            originalTweet: {
-                include: tweetInclude
-            },
-        };
+            tags: { with: { travelTag: true } },
+            likes: session?.user?.id ? { where: (l: any, { eq }: any) => eq(l.userId, session.user.id), columns: { userId: true } } : undefined,
+            retweets: session?.user?.id ? { where: (r: any, { eq }: any) => eq(r.userId, session.user.id), columns: { userId: true } } : undefined,
+            bookmarks: session?.user?.id ? { where: (b: any, { eq }: any) => eq(b.userId, session.user.id), columns: { userId: true } } : undefined,
+        } as any;
 
         if (tab === "likes") {
-            const likes = await prisma.like.findMany({
-                where: { userId: profileUser.id },
-                orderBy: { createdAt: "desc" },
-                include: {
+            const likesResult = await db.query.likes.findMany({
+                where: (likes, { eq }) => eq(likes.userId, profileUser.id),
+                orderBy: (likes, { desc }) => [desc(likes.createdAt)],
+                with: {
                     tweet: {
-                        include: commonInclude
+                        with: baseWith
                     }
                 }
             });
-            tweets = likes.map(l => l.tweet).filter(t => !t.deletedAt);
+            tweetsData = likesResult.map(l => (l as any).tweet).filter((t: any) => t && !t.deletedAt);
         } else if (tab === "map") {
-            // 지도 탭의 경우 위치 정보가 있는 모든 트윗을 가져옴
-            tweets = await prisma.tweet.findMany({
-                where: {
-                    userId: profileUser.id,
-                    deletedAt: null,
-                    latitude: { not: null },
-                    longitude: { not: null },
-                    // Tweet visibility check handled by application logic or query filter?
-                    // For now, assuming if you can view profile, you can view tweets unless tweet itself is PRIVATE/FOLLOWERS constrained differently?
-                    // But simplified: Profile access grants tweet access for now, OR need to allow tweet.visibility check.
-                    // Let's rely on basic profile privacy for this step.
-                },
-                orderBy: { createdAt: "desc" },
-                include: commonInclude,
+            tweetsData = await db.query.tweets.findMany({
+                where: (tweets, { and, eq, isNull, isNotNull }) =>
+                    and(
+                        eq(tweets.userId, profileUser.id),
+                        isNull(tweets.deletedAt),
+                        isNotNull(tweets.latitude),
+                        isNotNull(tweets.longitude)
+                    ),
+                orderBy: (tweets, { desc }) => [desc(tweets.createdAt)],
+                with: baseWith
             });
         } else {
-            const where: any = { userId: profileUser.id, deletedAt: null };
-
-            if (tab === "tweets") {
-                where.OR = [
-                    { parentId: null },
-                    { originalTweetId: { not: null } }
-                ];
-            } else if (tab === "replies") {
-                where.parentId = { not: null };
-            } else if (tab === "media") {
-                where.media = { some: {} };
-            }
-
-            tweets = await prisma.tweet.findMany({
-                where,
-                orderBy: { createdAt: "desc" },
-                include: commonInclude,
+            tweetsData = await db.query.tweets.findMany({
+                where: (tweets, { and, eq, isNull, or, not, isNotNull }) => {
+                    const conds = [eq(tweets.userId, profileUser.id), isNull(tweets.deletedAt)];
+                    if (tab === "tweets") {
+                        const orClause = or(isNull(tweets.parentId), eq(tweets.isRetweet, true));
+                        if (orClause) conds.push(orClause);
+                    } else if (tab === "replies") {
+                        conds.push(isNotNull(tweets.parentId));
+                    }
+                    return and(...conds);
+                },
+                orderBy: (tweets, { desc }) => [desc(tweets.createdAt)],
+                with: baseWith
             });
+
+            if (tab === "media") {
+                tweetsData = tweetsData.filter(t => t.media && t.media.length > 0);
+            }
         }
     }
 
-    const formattedTweets = tweets.map((tweet: any) => {
-        const isRetweet = !!tweet.originalTweetId && !!tweet.originalTweet;
-        const displayTweet = isRetweet ? tweet.originalTweet : tweet;
+    const formattedTweets = await Promise.all(tweetsData.map(async (tweet: any) => {
+        if (!tweet) return null;
+        const isRetweet = tweet.isRetweet === true && !!tweet.originalTweetId;
+        let displayTweet = tweet;
+        if (isRetweet) {
+            displayTweet = await db.query.tweets.findFirst({
+                where: (tw, { eq }) => eq(tw.id, tweet.originalTweetId as string),
+                with: {
+                    user: true,
+                    media: true,
+                    tags: { with: { travelTag: true } },
+                    likes: session?.user?.id ? { where: (l: any, { eq }: any) => eq(l.userId, session.user.id), columns: { userId: true } } : undefined,
+                    retweets: session?.user?.id ? { where: (r: any, { eq }: any) => eq(r.userId, session.user.id), columns: { userId: true } } : undefined,
+                    bookmarks: session?.user?.id ? { where: (b: any, { eq }: any) => eq(b.userId, session.user.id), columns: { userId: true } } : undefined,
+                } as any
+            });
+        }
 
-        // Tweet Visibility Logic (Post-fetch filter or simple data passing)
-        // If tweet is visibility="PRIVATE", only author can see (handled by query usually, but double check)
-        // If visibility="FOLLOWERS", only followers can see (handled by canViewProfile mostly)
-        // For simplicity, we just pass data. UI can hide if needed, but critical data protection should be here.
-        // Assuming 'canViewProfile' covers most cases. 
-        // Direct 'PRIVATE' tweets should be filtered if not current user.
+        if (!displayTweet || displayTweet.deletedAt) return null;
         if (displayTweet.visibility === "PRIVATE" && !isCurrentUser) return null;
+
+        const [counts] = await db.select({
+            likes: sql<number>`(SELECT COUNT(*) FROM "Like" WHERE "tweetId" = ${displayTweet.id})`,
+            retweets: sql<number>`(SELECT COUNT(*) FROM "Retweet" WHERE "tweetId" = ${displayTweet.id})`,
+            replies: sql<number>`(SELECT COUNT(*) FROM "Tweet" WHERE "parentId" = ${displayTweet.id} AND "deletedAt" IS NULL)`,
+        }).from(schema.tweets).where(eq(schema.tweets.id, displayTweet.id as string));
+
+        const safeCounts = counts || { likes: 0, retweets: 0, replies: 0 };
 
         return {
             id: displayTweet.id,
             content: displayTweet.content,
-            createdAt: DateTime.fromJSDate(displayTweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-            fullCreatedAt: DateTime.fromJSDate(displayTweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+            createdAt: DateTime.fromISO(displayTweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+            fullCreatedAt: DateTime.fromISO(displayTweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
             user: {
                 id: displayTweet.user.id,
                 name: displayTweet.user.name || "알 수 없음",
                 username: getUsername(displayTweet.user.email),
                 image: displayTweet.user.image || displayTweet.user.avatarUrl,
             },
-            media: displayTweet.media.map((m: any) => ({
+            media: displayTweet.media?.map((m: any) => ({
                 id: m.id,
                 url: m.url,
                 type: m.type as "IMAGE" | "VIDEO",
                 altText: m.altText
-            })),
+            })) || [],
             stats: {
-                likes: displayTweet._count?.likes || 0,
-                replies: displayTweet._count?.replies || 0,
-                retweets: displayTweet._count?.retweets || 0,
+                likes: safeCounts.likes || 0,
+                replies: safeCounts.replies || 0,
+                retweets: safeCounts.retweets || 0,
                 views: "0",
             },
-            isLiked: displayTweet.likes && displayTweet.likes.length > 0,
-            isRetweeted: displayTweet.retweets && displayTweet.retweets.length > 0,
-            isBookmarked: displayTweet.bookmarks && displayTweet.bookmarks.length > 0,
+            isLiked: (displayTweet.likes?.length || 0) > 0,
+            isRetweeted: (displayTweet.retweets?.length || 0) > 0,
+            isBookmarked: (displayTweet.bookmarks?.length || 0) > 0,
             location: displayTweet.locationName ? {
                 name: displayTweet.locationName,
                 latitude: displayTweet.latitude,
@@ -196,16 +207,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             retweetedBy: isRetweet ? {
                 name: tweet.user.name || "Unknown",
                 username: getUsername(tweet.user.email),
-                retweetedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() ?? undefined,
+                retweetedAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toRelative() ?? undefined,
             } : undefined,
-            travelDate: displayTweet.travelDate ? new Date(displayTweet.travelDate).toISOString() : null,
+            travelDate: displayTweet.travelDate,
             visibility: displayTweet.visibility as "PUBLIC" | "FOLLOWERS" | "PRIVATE"
         };
-    }).filter(Boolean);
+    }));
 
     return data({
-        profileUser,
-        tweets: formattedTweets,
+        profileUser: profileUserWithCount,
+        tweets: formattedTweets.filter(Boolean),
         isCurrentUser,
         isFollowing,
         isPending,
@@ -217,15 +228,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export default function UserProfile() {
     const loaderData = useLoaderData<typeof loader>();
+    if (!loaderData) return null;
     const { profileUser, tweets, isCurrentUser, isFollowing, isPending, canViewProfile, currentUserId, tab } = loaderData;
     const [searchParams, setSearchParams] = useSearchParams();
     const [editOpen, setEditOpen] = useState(false);
 
     const handleTabChange = (newTab: string) => {
-        setSearchParams(prev => {
-            prev.set("tab", newTab);
-            return prev;
-        });
+        const params = new URLSearchParams(searchParams);
+        params.set("tab", newTab);
+        setSearchParams(params);
     };
 
     const tabs = [
@@ -289,7 +300,7 @@ export default function UserProfile() {
                     <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 text-muted-foreground text-sm">
                         <div className="flex items-center gap-1">
                             <CalendarIcon className="w-4 h-4" />
-                            <span>가입일: {DateTime.fromJSDate(new Date(profileUser.createdAt)).setLocale("ko").toFormat("yyyy년 M월")}</span>
+                            <span>가입일: {DateTime.fromISO(profileUser.createdAt).setLocale("ko").toFormat("yyyy년 M월")}</span>
                         </div>
                     </div>
 
@@ -362,42 +373,18 @@ export default function UserProfile() {
                         <TweetCard
                             key={`${tweet.id}-${tab}`}
                             id={tweet.id}
-                            user={{
-                                id: tweet.user.id,
-                                name: tweet.user.name || "Unknown",
-                                username: getUsername(tweet.user.email),
-                                image: tweet.user.image || tweet.user.avatarUrl
-                            }}
+                            user={tweet.user}
                             content={tweet.content}
-                            createdAt={DateTime.fromJSDate(new Date(tweet.createdAt)).setLocale("ko").toRelative() || ""}
-                            fullCreatedAt={DateTime.fromJSDate(new Date(tweet.createdAt)).setLocale("ko").toLocaleString(DateTime.DATETIME_MED)}
-                            stats={{
-                                replies: tweet._count?.replies || 0,
-                                retweets: tweet._count?.retweets || 0,
-                                likes: tweet._count?.likes || 0,
-                                views: "0"
-                            }}
+                            createdAt={tweet.createdAt}
+                            fullCreatedAt={tweet.fullCreatedAt}
+                            stats={tweet.stats}
                             isLiked={tweet.isLiked}
                             isRetweeted={tweet.isRetweeted}
                             isBookmarked={tweet.isBookmarked}
-                            media={tweet.media ? tweet.media.map((m: any) => ({
-                                id: m.id,
-                                type: m.type as "IMAGE" | "VIDEO",
-                                url: m.url
-                            })) : []}
+                            media={tweet.media}
                             retweetedBy={tweet.retweetedBy}
-                            location={tweet.locationName ? {
-                                name: tweet.locationName,
-                                latitude: tweet.latitude,
-                                longitude: tweet.longitude,
-                            } : undefined}
-                            tags={tweet.tags ? tweet.tags
-                                .filter((t: any) => t.travelTag)
-                                .map((t: any) => ({
-                                    id: t.travelTag.id,
-                                    name: t.travelTag.name,
-                                    slug: t.travelTag.slug
-                                })) : []}
+                            location={tweet.location}
+                            tags={tweet.tags}
                             travelDate={tweet.travelDate}
                         />
                     ))
@@ -411,11 +398,11 @@ export default function UserProfile() {
                     onOpenChange={setEditOpen}
                     user={{
                         id: profileUser.id,
-                        name: profileUser.name,
+                        name: profileUser.name || "Unknown",
                         bio: profileUser.bio,
                         image: profileUser.image || profileUser.avatarUrl,
                         coverImage: profileUser.coverImage || null,
-                        isPrivate: profileUser.isPrivate,
+                        isPrivate: !!profileUser.isPrivate,
                     }}
                 />
             )}

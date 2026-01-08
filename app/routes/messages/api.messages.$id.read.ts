@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { pusher } from "~/lib/pusher.server";
 import { getConversationChannelId } from "~/lib/pusher-shared";
 
@@ -27,13 +29,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
         }
 
         // 메시지 조회
-        const message = await prisma.directMessage.findUnique({
-            where: { id: messageId },
-            include: {
+        const message = await db.query.directMessages.findFirst({
+            where: (messages, { eq }) => eq(messages.id, messageId),
+            with: {
                 conversation: {
-                    include: {
+                    with: {
                         participants: {
-                            where: { userId },
+                            where: (p, { eq }) => eq(p.userId, userId),
                         },
                     },
                 },
@@ -67,13 +69,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
         }
 
         // 읽음 처리
-        const updatedMessage = await prisma.directMessage.update({
-            where: { id: messageId },
-            data: { isRead: true },
-            include: {
-                conversation: true,
-            },
-        });
+        await db.update(schema.directMessages)
+            .set({ isRead: true })
+            .where(eq(schema.directMessages.id, messageId));
 
         // Pusher 이벤트 트리거: 대화방 채널에 읽음 처리 알림
         try {
@@ -81,21 +79,21 @@ export async function action({ request, params }: ActionFunctionArgs) {
                 getConversationChannelId(message.conversationId),
                 "message-read",
                 {
-                    messageId: updatedMessage.id,
+                    messageId: message.id,
                     conversationId: message.conversationId,
                     readBy: userId,
                 }
             );
         } catch (pusherError) {
-            // Pusher 오류는 로그만 남기고 읽음 처리您是 성공으로 처리
+            // Pusher 오류는 로그만 남기고 읽음 처리 성공으로 처리
             console.error("Pusher trigger error:", pusherError);
         }
 
         return data({
             success: true,
             message: {
-                id: updatedMessage.id,
-                isRead: updatedMessage.isRead,
+                id: message.id,
+                isRead: true,
             },
         });
     } catch (error) {

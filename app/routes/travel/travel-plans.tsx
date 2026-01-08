@@ -1,6 +1,8 @@
 import { type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { travelPlans } from "~/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { useLoaderData, Link, useFetcher } from "react-router";
 import { useState, useEffect } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -34,17 +36,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
 
     const userId = session.user.id;
-    const travelPlans = await prisma.travelPlan.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        include: {
-            _count: {
-                select: { tweets: true, items: true }
-            }
+    const plans = await db.query.travelPlans.findMany({
+        where: eq(travelPlans.userId, userId),
+        orderBy: [desc(travelPlans.createdAt)],
+        with: {
+            // Need items and tweets to count them
+            // If optimization needed, use aggregation query, but mapping is fine for simple list
+            items: { columns: { id: true } },
+            tweets: { columns: { id: true } }
         }
     });
 
-    return { travelPlans };
+    const formattedPlans = plans.map(p => ({
+        ...p,
+        _count: {
+            items: p.items.length,
+            tweets: p.tweets.length
+        }
+    }));
+
+    return { travelPlans: formattedPlans };
 }
 
 export default function TravelPlansPage() {
@@ -185,8 +196,8 @@ export default function TravelPlansPage() {
                                         <div className="flex items-center gap-1.5">
                                             <HugeiconsIcon icon={Calendar03Icon} className="h-3.5 w-3.5" />
                                             <span>
-                                                {DateTime.fromJSDate(new Date(plan.startDate)).setLocale("ko").toFormat("yyyy.MM.dd")}
-                                                {plan.endDate && ` ~ ${DateTime.fromJSDate(new Date(plan.endDate)).setLocale("ko").toFormat("MM.dd")}`}
+                                                {DateTime.fromISO(plan.startDate).setLocale("ko").toFormat("yyyy.MM.dd")}
+                                                {plan.endDate && ` ~ ${DateTime.fromISO(plan.endDate).setLocale("ko").toFormat("MM.dd")}`}
                                             </span>
                                         </div>
                                     )}

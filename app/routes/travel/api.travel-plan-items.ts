@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
 import { getSession } from "~/lib/auth-utils.server";
+import { db } from "~/db";
+import { travelPlans, travelPlanItems } from "~/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 
 const createItemSchema = z.object({
@@ -36,9 +38,9 @@ export async function action({ request }: ActionFunctionArgs) {
         const validated = createItemSchema.parse(rawData);
 
         // Verify ownership of the plan
-        const plan = await prisma.travelPlan.findUnique({
-            where: { id: validated.travelPlanId },
-            select: { userId: true }
+        const plan = await db.query.travelPlans.findFirst({
+            where: eq(travelPlans.id, validated.travelPlanId),
+            columns: { userId: true }
         });
 
         if (!plan || plan.userId !== session.user.id) {
@@ -46,25 +48,25 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         // Get max order
-        const lastItem = await prisma.travelPlanItem.findFirst({
-            where: { travelPlanId: validated.travelPlanId },
-            orderBy: { order: "desc" },
-            select: { order: true }
+        const lastItem = await db.query.travelPlanItems.findFirst({
+            where: eq(travelPlanItems.travelPlanId, validated.travelPlanId),
+            orderBy: [desc(travelPlanItems.order)],
+            columns: { order: true }
         });
 
         const newOrder = (lastItem?.order ?? -1) + 1;
 
-        const newItem = await prisma.travelPlanItem.create({
-            data: {
-                travelPlanId: validated.travelPlanId,
-                title: validated.title,
-                description: validated.description,
-                locationName: validated.locationName,
-                date: validated.date ? new Date(validated.date) : null,
-                time: validated.time,
-                order: newOrder,
-            }
-        });
+        const [newItem] = await db.insert(travelPlanItems).values({
+            id: crypto.randomUUID(),
+            travelPlanId: validated.travelPlanId,
+            title: validated.title,
+            description: validated.description,
+            locationName: validated.locationName,
+            date: validated.date ? new Date(validated.date).toISOString() : null,
+            time: validated.time,
+            order: newOrder,
+            updatedAt: new Date().toISOString(),
+        }).returning();
 
         return data({ item: newItem });
     } catch (error) {

@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
 import { auth } from "~/lib/auth";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { users } from "~/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function action({ request }: ActionFunctionArgs) {
     const session = await auth.api.getSession({ headers: request.headers });
@@ -13,21 +15,25 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     const formData = await request.formData();
-    const dataToUpdate: any = {};
+    const dataToUpdate: Partial<typeof users.$inferInsert> = {};
     if (formData.has("name")) dataToUpdate.name = formData.get("name") as string;
     if (formData.has("bio")) dataToUpdate.bio = formData.get("bio") as string;
     if (formData.has("image")) dataToUpdate.image = formData.get("image") as string;
     if (formData.has("coverImage")) dataToUpdate.coverImage = formData.get("coverImage") as string;
     if (formData.has("isPrivate")) {
         const isPrivateStr = formData.get("isPrivate") as string;
+        // isPrivate in Drizzle (sqlite) is typically integer (boolean mode).
+        // Check schema. If it's `integer("isPrivate", { mode: "boolean" })`, true/false works.
+        // If it's boolean, fine.
+        // Assuming boolean mode based on other files.
         dataToUpdate.isPrivate = isPrivateStr === "true";
     }
 
     try {
-        const updatedUser = await prisma.user.update({
-            where: { id: session.user.id },
-            data: dataToUpdate
-        });
+        const [updatedUser] = await db.update(users)
+            .set(dataToUpdate)
+            .where(eq(users.id, session.user.id))
+            .returning();
 
         return data({ success: true, user: updatedUser });
     } catch (error) {

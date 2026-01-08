@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
 import { getSession } from "~/lib/auth-utils.server";
+import { db } from "~/db";
+import { travelPlans } from "~/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 
 const createTravelPlanSchema = z.object({
@@ -19,28 +21,29 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     const userId = session.user.id;
     const url = new URL(request.url);
-    const status = url.searchParams.get("status") || undefined;
+    const status = url.searchParams.get("status") as "PLANNING" | "ONGOING" | "COMPLETED" | null;
 
     try {
-        const travelPlans = await prisma.travelPlan.findMany({
-            where: {
-                userId,
-                status: status as any,
-            },
-            orderBy: {
-                createdAt: "desc",
-            },
-            include: {
-                _count: {
-                    select: {
-                        items: true,
-                        tweets: true,
-                    }
-                }
+        const plans = await db.query.travelPlans.findMany({
+            where: status
+                ? and(eq(travelPlans.userId, userId), eq(travelPlans.status, status))
+                : eq(travelPlans.userId, userId),
+            orderBy: [desc(travelPlans.createdAt)],
+            with: {
+                items: true,
+                tweets: true
             }
         });
 
-        return data({ travelPlans });
+        const formattedPlans = plans.map(p => ({
+            ...p,
+            _count: {
+                items: p.items.length,
+                tweets: p.tweets.length
+            }
+        }));
+
+        return data({ travelPlans: formattedPlans });
     } catch (error) {
         console.error("Failed to fetch travel plans:", error);
         return data({ error: "여행 계획을 불러오는데 실패했습니다." }, { status: 500 });
@@ -69,16 +72,17 @@ export async function action({ request }: ActionFunctionArgs) {
 
         const validated = createTravelPlanSchema.parse(rawData);
 
-        const travelPlan = await prisma.travelPlan.create({
-            data: {
-                userId: session.user.id,
-                title: validated.title,
-                description: validated.description,
-                startDate: validated.startDate ? new Date(validated.startDate) : null,
-                endDate: validated.endDate ? new Date(validated.endDate) : null,
-                status: validated.status,
-            }
-        });
+        const [travelPlan] = await db.insert(travelPlans).values({
+            id: crypto.randomUUID(),
+            userId: session.user.id,
+            title: validated.title,
+            description: validated.description,
+            // Drizzle schema uses text for dates, so use ISO string
+            startDate: validated.startDate ? new Date(validated.startDate).toISOString() : null,
+            endDate: validated.endDate ? new Date(validated.endDate).toISOString() : null,
+            status: validated.status,
+            updatedAt: new Date().toISOString(),
+        }).returning();
 
         return data({ travelPlan });
     } catch (error) {

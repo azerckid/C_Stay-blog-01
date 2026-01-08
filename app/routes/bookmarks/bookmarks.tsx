@@ -3,7 +3,9 @@ import { getSession } from "~/lib/auth-utils.server";
 import { useSession } from "~/lib/auth-client";
 import { useLoaderData, data, Form, useSubmit, useSearchParams, Link, useRevalidator } from "react-router";
 import { TweetCard } from "~/components/tweet/tweet-card";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { bookmarks, tweets, bookmarkCollections } from "~/db/schema";
+import { eq, and, desc, ilike, exists, asc } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -52,44 +54,69 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const onlyMedia = url.searchParams.get("media") === "true";
     const collectionId = url.searchParams.get("collection") || "";
 
-    const [bookmarks, collections] = await Promise.all([
-        prisma.bookmark.findMany({
-            where: {
-                userId,
-                collectionId: collectionId ? collectionId : undefined,
-                tweet: {
-                    content: q ? { contains: q } : undefined,
-                    media: onlyMedia ? { some: {} } : undefined,
-                }
-            },
-            orderBy: { createdAt: "desc" },
-            include: {
-                tweet: {
-                    include: {
-                        user: true,
-                        media: true,
-                        _count: { select: { likes: true, replies: true, retweets: true } },
-                        likes: { where: { userId }, select: { userId: true } },
-                        retweets: { where: { userId }, select: { userId: true } },
-                        bookmarks: { where: { userId }, select: { userId: true } },
-                        tags: { include: { travelTag: true } }
-                    }
+    // Drizzle doesn't support deep filtering in query builder easily (e.g. filter bookmarks by tweet content).
+    // We can use query builder with `findMany` if we accept client side filtering OR use `findMany` strategy with `where: (b, {exists})`?
+    // Let's use `db.query.bookmarks.findMany` and filtering manually in JS for now if scale permits, or try to use `where` effectively.
+    // Actually, `bookmarks` are personal, so volume likely < 1000. Client-side filter or simple filtering is okay-ish, but let's try strict DB filtering.
+    // Filtering by tweet content needs a join or subquery.
+
+    // Let's use `db.query.bookmarks.findMany` and fetch all, then filter.
+    // To filter by tweet content/media at DB level for bookmarks, we would need to join.
+    // But `db.query` is convenient for relations.
+    // Solution: Fetch bookmarks that match filters using `db.select().from(bookmarks).innerJoin(tweets)...` then use IDs to fetch details?
+    // Or just `db.query` with `where` logic.
+    // Since `tweet` is a relation, we can't filter top-level `bookmarks` by `tweet` fields easily in `db.query` without `exists`.
+    // But `tweet` is 1:1 (or N:1) from bookmark side.
+
+    // Easier approach: Use `db.query.bookmarks.findMany` with relations, and filter by collectionId (easy).
+    // For `q` and `onlyMedia`, we can use `where` with exists if strict, or filter in JS.
+    // Let's filter in JS to keep relation fetching simple and consistent with other migrations, assuming reasonable bookmark count. 
+    // Wait, `tweet` relation fetching is needed anyway.
+
+    // Actually, let's try `db.query.bookmarks.findMany` filtered by collectionId.
+    // Then filter by `q` and `media` in memory.
+
+    const bookmarksList = await db.query.bookmarks.findMany({
+        where: collectionId
+            ? and(eq(bookmarks.userId, userId), eq(bookmarks.collectionId, collectionId))
+            : eq(bookmarks.userId, userId),
+        orderBy: [desc(bookmarks.createdAt)],
+        with: {
+            tweet: {
+                with: {
+                    user: true,
+                    media: true,
+                    likes: { columns: { userId: true } },
+                    replies: { columns: { id: true } },
+                    retweets: { columns: { userId: true } },
+                    bookmarks: { where: (b, { eq }) => eq(b.userId, userId), columns: { userId: true } },
+                    tags: { with: { travelTag: true } }
                 }
             }
-        }),
-        prisma.bookmarkCollection.findMany({
-            where: { userId },
-            orderBy: { name: "asc" }
-        })
-    ]);
+        }
+    });
 
-    const tweets = bookmarks.map(b => b.tweet).filter(t => !t.deletedAt);
+    const collectionsList = await db.query.bookmarkCollections.findMany({
+        where: eq(bookmarkCollections.userId, userId),
+        orderBy: [asc(bookmarkCollections.name)]
+    });
 
-    const formattedTweets = tweets.map(tweet => ({
+    // In-memory filtering for tweet content/media
+    let filteredTweets = bookmarksList.map(b => b.tweet).filter((t): t is NonNullable<typeof t> => !!t && !t.deletedAt);
+
+    if (q) {
+        const lowerQ = q.toLowerCase();
+        filteredTweets = filteredTweets.filter(t => t.content.toLowerCase().includes(lowerQ));
+    }
+    if (onlyMedia) {
+        filteredTweets = filteredTweets.filter(t => t.media.length > 0);
+    }
+
+    const formattedTweets = filteredTweets.map(tweet => ({
         id: tweet.id,
         content: tweet.content,
-        createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-        fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+        createdAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+        fullCreatedAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
         user: {
             id: tweet.user.id,
             name: tweet.user.name || "알 수 없음",
@@ -103,20 +130,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
             altText: m.altText
         })),
         stats: {
-            likes: tweet._count.likes,
-            replies: tweet._count.replies,
-            retweets: tweet._count.retweets,
+            likes: tweet.likes.length,
+            replies: tweet.replies.length,
+            retweets: tweet.retweets.length,
             views: "0",
         },
-        isLiked: tweet.likes && tweet.likes.length > 0,
-        isRetweeted: tweet.retweets && tweet.retweets.length > 0,
-        isBookmarked: tweet.bookmarks && tweet.bookmarks.length > 0,
+        isLiked: tweet.likes.some(l => l.userId === userId),
+        isRetweeted: tweet.retweets.some(r => r.userId === userId),
+        isBookmarked: (tweet.bookmarks?.length ?? 0) > 0,
         location: tweet.locationName ? {
             name: tweet.locationName,
             latitude: tweet.latitude || undefined,
             longitude: tweet.longitude || undefined,
         } : undefined,
-        travelDate: tweet.travelDate?.toISOString(),
+        travelDate: tweet.travelDate, // Already string
         tags: tweet.tags.map(t => ({
             id: t.travelTag.id,
             name: t.travelTag.name,
@@ -126,7 +153,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     return data({
         tweets: formattedTweets,
-        collections,
+        collections: collectionsList,
         filters: { q, onlyMedia, collectionId }
     });
 }

@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
 import { getSession } from "~/lib/auth-utils.server";
+import { db } from "~/db";
+import { tweets, bookmarks } from "~/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const bookmarkActionSchema = z.object({
@@ -33,8 +35,8 @@ export async function action({ request }: ActionFunctionArgs) {
         const userId = session.user.id;
 
         // 트윗 존재 여부 확인
-        const tweet = await prisma.tweet.findUnique({
-            where: { id: targetTweetId },
+        const tweet = await db.query.tweets.findFirst({
+            where: eq(tweets.id, targetTweetId)
         });
 
         if (!tweet) {
@@ -42,36 +44,30 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         // 이미 북마크를 눌렀는지 확인
-        const existingBookmark = await prisma.bookmark.findUnique({
-            where: {
-                userId_tweetId: {
-                    userId: userId,
-                    tweetId: targetTweetId,
-                },
-            },
+        const existingBookmark = await db.query.bookmarks.findFirst({
+            where: and(
+                eq(bookmarks.userId, userId),
+                eq(bookmarks.tweetId, targetTweetId)
+            )
         });
 
         let bookmarked = false;
 
         if (existingBookmark) {
             // 이미 북마크가 있다면 삭제 (북마크 취소)
-            await prisma.bookmark.delete({
-                where: {
-                    userId_tweetId: {
-                        userId: userId,
-                        tweetId: targetTweetId,
-                    },
-                },
-            });
+            await db.delete(bookmarks)
+                .where(and(
+                    eq(bookmarks.userId, userId),
+                    eq(bookmarks.tweetId, targetTweetId)
+                ));
             bookmarked = false;
         } else {
             // 북마크가 없다면 생성 (북마크)
-            await prisma.bookmark.create({
-                data: {
-                    userId: userId,
-                    tweetId: targetTweetId,
-                    collectionId: targetCollectionId === "none" ? null : targetCollectionId,
-                },
+            await db.insert(bookmarks).values({
+                id: crypto.randomUUID(),
+                userId: userId,
+                tweetId: targetTweetId,
+                collectionId: targetCollectionId === "none" ? null : targetCollectionId,
             });
             bookmarked = true;
         }

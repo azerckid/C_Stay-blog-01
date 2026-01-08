@@ -1,7 +1,9 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { Form, useLoaderData, useSearchParams, Link, useNavigate, useSubmit, useFetcher } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq, and, or, ilike, like, desc, lt, gte, lte, sql, inArray, count } from "drizzle-orm";
 import { UserCard } from "~/components/user/user-card";
 import { TweetCard } from "~/components/tweet/tweet-card";
 import { Input } from "~/components/ui/input";
@@ -11,7 +13,6 @@ import { Search01Icon, ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { DateTime } from "luxon";
 import { useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "~/components/ui/loading-spinner";
-import { generateEmbedding, vectorToBuffer } from "~/lib/gemini.server";
 import { Button } from "~/components/ui/button";
 import { FilterIcon, Calendar03Icon, Location01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
@@ -20,10 +21,6 @@ import { LocationPickerDialog, type LocationData } from "~/components/maps/locat
 import { Badge } from "~/components/ui/badge";
 import { Label } from "~/components/ui/label";
 import { cn } from "~/lib/utils";
-
-
-
-
 
 export const meta: MetaFunction = ({ data }: any) => {
     return [{ title: `검색 / STAYnC` }];
@@ -46,47 +43,43 @@ export async function loader({ request }: LoaderFunctionArgs) {
         return { session, query, type: type || "tweets", results: [], nextCursor: null };
     }
 
-
     // 스마트 탭 감지: 명시적인 type이 없을 경우
     if (!type) {
-        const userMatchCount = await prisma.user.count({
-            where: {
-                OR: [
-                    { name: { contains: query } },
-                    { email: { startsWith: query } }
-                ]
-            }
-        });
+        const [{ value: userMatchCount }] = await db.select({ value: count() })
+            .from(schema.users)
+            .where(or(
+                ilike(schema.users.name, `%${query}%`),
+                ilike(schema.users.email, `${query}%`)
+            ));
+
         // 일치하는 사용자가 있으면 사용자 탭을 기본값으로, 없으면 트윗 탭으로 설정
         type = userMatchCount > 0 ? "users" : "tweets";
     }
 
-
     let results: any[] = [];
     let nextCursor: string | null = null;
 
-
     if (type === "users") {
-        const users = await prisma.user.findMany({
-            where: {
-                OR: [
-                    { name: { contains: query } },
-                    { email: { contains: query } },
-                    { bio: { contains: query } }
-                ]
+        const users = await db.query.users.findMany({
+            where: (u, { or, ilike }) => or(
+                ilike(u.name, `%${query}%`),
+                ilike(u.email, `%${query}%`),
+                ilike(u.bio, `%${query}%`)
+            ),
+            limit: 20,
+            with: {
+                followedBy: userId ? {
+                    where: (f, { eq }) => eq(f.followerId, userId),
+                    columns: { id: true }
+                } : undefined
             },
-            take: 20,
-            select: {
+            columns: {
                 id: true,
                 name: true,
                 email: true,
                 image: true,
                 avatarUrl: true,
-                bio: true,
-                followedBy: userId ? {
-                    where: { followerId: userId },
-                    select: { id: true }
-                } : false
+                bio: true
             }
         });
 
@@ -104,57 +97,59 @@ export async function loader({ request }: LoaderFunctionArgs) {
     } else {
         // 1. 키워드 검색: 태그 우선 매칭 로직 적용
         // 검색어가 기존 태그와 정확히 일치하는지 먼저 확인
-        const exactTag = await prisma.travelTag.findUnique({
-            where: { name: query }
+        const exactTag = await db.query.travelTags.findFirst({
+            where: (t, { eq }) => eq(t.name, query)
         });
 
-        const tweets = await prisma.tweet.findMany({
-            where: {
-                deletedAt: null,
-                ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
-                ...(exactTag ? {
+        const tweets = await db.query.tweets.findMany({
+            where: (t, { and, or, eq, ilike, exists, lt, gte, lte, isNull }) => {
+                const conditions = [isNull(t.deletedAt)];
+
+                if (cursor) conditions.push(lt(t.createdAt, cursor));
+
+                if (exactTag) {
                     // 정확한 태그가 있는 경우 태그 필터링을 우선 적용
-                    tags: {
-                        some: {
-                            travelTagId: exactTag.id
-                        }
-                    }
-                } : query ? {
-                    // 그 외에는 일반적인 내용 및 태그 포함 검색 (Contains)
-                    OR: [
-                        { content: { contains: query } },
-                        {
-                            tags: {
-                                some: {
-                                    travelTag: {
-                                        name: { contains: query }
-                                    }
-                                }
-                            }
-                        }
-                    ]
-                } : {}),
-                // 위치 필터 추가
-                ...(country ? { country } : {}),
-                ...(city ? { city } : {}),
-                // 날짜 필터 추가
-                ...(startDate || endDate ? {
-                    travelDate: {
-                        ...(startDate ? { gte: new Date(startDate) } : {}),
-                        ...(endDate ? { lte: new Date(endDate) } : {}),
-                    }
-                } : {})
+                    conditions.push(
+                        inArray(
+                            t.id,
+                            db.select({ tweetId: schema.tweetTravelTags.tweetId })
+                                .from(schema.tweetTravelTags)
+                                .where(eq(schema.tweetTravelTags.travelTagId, exactTag.id))
+                        )
+                    );
+                } else if (query) {
+                    const orCondition = or(
+                        ilike(t.content, `%${query}%`),
+                        inArray(
+                            t.id,
+                            db.select({ tweetId: schema.tweetTravelTags.tweetId })
+                                .from(schema.tweetTravelTags)
+                                .leftJoin(schema.travelTags, eq(schema.tweetTravelTags.travelTagId, schema.travelTags.id))
+                                .where(ilike(schema.travelTags.name, `%${query}%`))
+                        )
+                    );
+                    if (orCondition) conditions.push(orCondition);
+                }
+
+                if (country) conditions.push(eq(t.country, country));
+                if (city) conditions.push(eq(t.city, city));
+                if (startDate || endDate) {
+                    if (startDate) conditions.push(gte(t.travelDate, startDate));
+                    if (endDate) conditions.push(lte(t.travelDate, endDate));
+                }
+
+                return and(...conditions);
             },
-            take: limit + 1,
-            orderBy: { createdAt: "desc" },
-            include: {
+            limit: limit + 1,
+            orderBy: (t, { desc }) => [desc(t.createdAt)],
+            with: {
                 user: true,
                 media: true,
-                _count: { select: { likes: true, replies: true, retweets: true } },
-                likes: userId ? { where: { userId }, select: { userId: true } } : false,
-                retweets: userId ? { where: { userId }, select: { userId: true } } : false,
-                bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
-                tags: { include: { travelTag: true } }
+                likes: { columns: { userId: true } },
+                replies: { columns: { id: true } },
+                retweets: { columns: { userId: true } },
+                bookmarks: userId ? { where: (b, { eq }) => eq(b.userId, userId), columns: { userId: true } } : undefined,
+                tags: { with: { travelTag: true } }
             }
         });
 
@@ -163,8 +158,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
             type: 'tweet',
             id: tweet.id,
             content: tweet.content,
-            createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-            fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+            createdAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+            fullCreatedAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
             user: {
                 id: tweet.user.id,
                 name: tweet.user.name || "알 수 없음",
@@ -178,17 +173,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 altText: m.altText
             })),
             stats: {
-                likes: tweet._count.likes,
-                replies: tweet._count.replies,
-                retweets: tweet._count.retweets,
+                likes: tweet.likes.length,
+                replies: tweet.replies.length,
+                retweets: tweet.retweets.length,
                 views: "0",
             },
-            isLiked: (tweet.likes?.length ?? 0) > 0,
-            isRetweeted: (tweet.retweets?.length ?? 0) > 0,
+            isLiked: tweet.likes.some(l => l.userId === userId),
+            isRetweeted: tweet.retweets.some(r => r.userId === userId),
             isBookmarked: (tweet.bookmarks?.length ?? 0) > 0,
             rawDate: tweet.createdAt, // 정렬용 원본 날짜 유지
             location: tweet.locationName ? {
-
                 name: tweet.locationName,
                 latitude: tweet.latitude || undefined,
                 longitude: tweet.longitude || undefined,
@@ -196,7 +190,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                 city: tweet.city || undefined,
                 country: tweet.country || undefined,
             } : undefined,
-            travelDate: tweet.travelDate?.toISOString(),
+            travelDate: tweet.travelDate,
             tags: tweet.tags.map(t => ({
                 id: t.travelTag.id,
                 name: t.travelTag.name,
@@ -207,18 +201,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
         // AI 기반 의미 검색 추가 (첫 페이지 로딩 시 혹은 명시적 요청 시)
         if (!cursor && query.length > 1) {
             try {
+                const { generateEmbedding } = await import("~/lib/gemini.server");
                 const queryVector = await generateEmbedding(query);
-                const vectorBuffer = vectorToBuffer(queryVector);
+                const stringVector = `[${queryVector.join(",")}]`; // Turso vector format
 
-                // Turso 벡터 검색 쿼리 실행 (단거리 순으로 20개)
-                const semanticMatches: any[] = await prisma.$queryRaw`
-                    SELECT tweetId, vector_distance_cos(vector, ${vectorBuffer}) as distance 
+                // Turso 벡터 검색 쿼리 실행
+                const semanticMatches: any[] = await db.all(sql`
+                    SELECT tweet_id as tweetId, vector_distance_cos(vector, vector32(${stringVector})) as distance 
                     FROM "TweetEmbedding" 
-                    WHERE vector_distance_cos(vector, ${vectorBuffer}) < 0.4
+                    WHERE vector_distance_cos(vector, vector32(${stringVector})) < 0.4
                     ORDER BY distance ASC 
                     LIMIT 20
-                `;
-
+                `);
 
                 if (semanticMatches.length > 0) {
                     const matchIds = semanticMatches.map(m => m.tweetId);
@@ -226,25 +220,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
                     const newIds = matchIds.filter(id => !existingIds.has(id));
 
                     if (newIds.length > 0) {
-                        const semanticTweets = await prisma.tweet.findMany({
-                            where: { id: { in: newIds }, deletedAt: null },
-                            include: {
+                        const semanticTweets = await db.query.tweets.findMany({
+                            where: (t, { inArray, and, isNull }) => and(inArray(t.id, newIds), isNull(t.deletedAt)),
+                            with: {
                                 user: true,
                                 media: true,
-                                _count: { select: { likes: true, replies: true, retweets: true } },
-                                likes: userId ? { where: { userId }, select: { userId: true } } : false,
-                                retweets: userId ? { where: { userId }, select: { userId: true } } : false,
-                                bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
-                                tags: { include: { travelTag: true } }
+                                likes: { columns: { userId: true } },
+                                replies: { columns: { id: true } },
+                                retweets: { columns: { userId: true } },
+                                bookmarks: userId ? { where: (b, { eq }) => eq(b.userId, userId), columns: { userId: true } } : undefined,
+                                tags: { with: { travelTag: true } }
                             }
                         });
+
 
                         const formattedSemantic = semanticTweets.map(tweet => ({
                             type: 'tweet',
                             id: tweet.id,
                             content: tweet.content,
-                            createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-                            fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+                            createdAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+                            fullCreatedAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
                             user: {
                                 id: tweet.user.id,
                                 name: tweet.user.name || "알 수 없음",
@@ -258,22 +253,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
                                 altText: m.altText
                             })),
                             stats: {
-                                likes: tweet._count.likes,
-                                replies: tweet._count.replies,
-                                retweets: tweet._count.retweets,
+                                likes: tweet.likes.length,
+                                replies: tweet.replies.length,
+                                retweets: tweet.retweets.length,
                                 views: "0",
                             },
-                            isLiked: (tweet.likes?.length ?? 0) > 0,
-                            isRetweeted: (tweet.retweets?.length ?? 0) > 0,
+                            isLiked: tweet.likes.some(l => l.userId === userId),
+                            isRetweeted: tweet.retweets.some(r => r.userId === userId),
                             isBookmarked: (tweet.bookmarks?.length ?? 0) > 0,
-                            rawDate: tweet.createdAt, // 정렬용 원본 날짜 유지
+                            rawDate: tweet.createdAt,
                             location: tweet.locationName ? {
-
                                 name: tweet.locationName,
                                 latitude: tweet.latitude || undefined,
                                 longitude: tweet.longitude || undefined,
+                                address: tweet.address || undefined,
+                                city: tweet.city || undefined,
+                                country: tweet.country || undefined,
                             } : undefined,
-                            travelDate: tweet.travelDate?.toISOString(),
+                            travelDate: tweet.travelDate,
                             tags: tweet.tags.map(t => ({
                                 id: t.travelTag.id,
                                 name: t.travelTag.name,
@@ -286,7 +283,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
                             new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime()
                         );
 
-                        // 중복 ID 제거 (동일한 트윗이 키워드와 의미 검색 모두에 잡힐 수 있음)
+                        // 중복 ID 제거
                         const seenIds = new Set();
                         results = results.filter(tweet => {
                             if (seenIds.has(tweet.id)) return false;
@@ -304,9 +301,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
         if (results.length > limit) {
             // ... (기존 로직 유지)
             if (tweets.length > limit) {
-                nextCursor = tweets[limit - 1].createdAt.toISOString();
+                nextCursor = tweets[limit - 1].createdAt;
             } else if (results[limit - 1]?.rawDate) {
-                nextCursor = new Date(results[limit - 1].rawDate).toISOString();
+                nextCursor = results[limit - 1].rawDate;
             }
             results = results.slice(0, limit);
         }

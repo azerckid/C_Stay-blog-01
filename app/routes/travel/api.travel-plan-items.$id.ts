@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
 import { getSession } from "~/lib/auth-utils.server";
+import { db } from "~/db";
+import { travelPlanItems } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const updateItemSchema = z.object({
@@ -23,9 +25,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
         return data({ error: "잘못된 접근입니다." }, { status: 400 });
     }
 
-    const item = await prisma.travelPlanItem.findUnique({
-        where: { id },
-        include: { travelPlan: { select: { userId: true } } }
+    const item = await db.query.travelPlanItems.findFirst({
+        where: eq(travelPlanItems.id, id),
+        with: {
+            travelPlan: { columns: { userId: true } }
+        }
     });
 
     if (!item) {
@@ -50,17 +54,18 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
             const validated = updateItemSchema.parse(rawData);
 
-            const updatedItem = await prisma.travelPlanItem.update({
-                where: { id },
-                data: {
+            const [updatedItem] = await db.update(travelPlanItems)
+                .set({
                     title: validated.title,
                     description: validated.description,
                     locationName: validated.locationName,
-                    date: validated.date ? new Date(validated.date) : null,
+                    date: validated.date ? new Date(validated.date).toISOString() : null,
                     time: validated.time,
                     status: validated.status,
-                }
-            });
+                    updatedAt: new Date().toISOString()
+                })
+                .where(eq(travelPlanItems.id, id))
+                .returning();
 
             return data({ item: updatedItem });
         } catch (error) {
@@ -74,9 +79,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
     if (request.method === "DELETE") {
         try {
-            await prisma.travelPlanItem.delete({
-                where: { id }
-            });
+            await db.delete(travelPlanItems).where(eq(travelPlanItems.id, id));
             return data({ success: true });
         } catch (error) {
             console.error("Failed to delete travel plan item:", error);

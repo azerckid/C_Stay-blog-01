@@ -10,7 +10,9 @@ import { LoadingSpinner } from "~/components/ui/loading-spinner";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "~/lib/utils";
 
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq, and, or, isNull, inArray, like, desc, lt, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -24,167 +26,151 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   let followingIds: string[] = [];
 
-  // 팔로잉 ID 목록 조회 (탭과 무관하게 권한 체크를 위해 필요)
+  // 팔로잉 ID 목록 조회
   if (userId) {
-    const follows = await prisma.follow.findMany({
-      where: { followerId: userId, status: "ACCEPTED" }, // 승인된 팔로우만
-      select: { followingId: true }
+    const follows = await db.query.follows.findMany({
+      where: (follows, { eq, and }) => and(eq(follows.followerId, userId), eq(follows.status, "ACCEPTED")),
+      columns: { followingId: true }
     });
     followingIds = follows.map(f => f.followingId);
   }
 
   // 공개 범위 필터 생성
-  let visibilityFilter: any = {};
-  if (userId) {
-    visibilityFilter = {
-      OR: [
-        { visibility: "PUBLIC" }, // PUBLIC
-        { visibility: "FOLLOWERS", userId: { in: [...followingIds, userId] } }, // 팔로우 중이거나 내 글
-        { visibility: "PRIVATE", userId: userId } // 내 비공개 글
-      ]
-    };
-  } else {
-    visibilityFilter = {
-      visibility: "PUBLIC"
-    };
-  }
-
-  // 기본 필터 조건 구성
-  const baseWhere: any = {
-    deletedAt: null,
-    parentId: null, // 홈 피드에는 답글 제외 (루트 트윗만 표시)
-    ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
-  };
-
-  // 탭별 추가 조건 적용
-  const andConditions: any[] = [visibilityFilter]; // 공개 범위 필터 적용
-
-  // 위치 필터 추가
-  if (locationFilter) {
-    andConditions.push({
-      OR: [
-        { country: { contains: locationFilter } },
-        { city: { contains: locationFilter } }
-      ]
-    });
-  }
-
-  const whereCondition: any = {
-    ...baseWhere,
-    AND: andConditions
-  };
-
-  if (feedType === "following") {
-    if (!userId) {
-      return { session, tweets: [], nextCursor: null, feedType, locationFilter };
+  const getVisibilityFilter = (tweetTable: any) => {
+    if (userId) {
+      return or(
+        eq(tweetTable.visibility, "PUBLIC"),
+        and(eq(tweetTable.visibility, "FOLLOWERS"), inArray(tweetTable.userId, [...followingIds, userId].length > 0 ? [...followingIds, userId] : ["__none__"])),
+        and(eq(tweetTable.visibility, "PRIVATE"), eq(tweetTable.userId, userId))
+      );
     }
-    whereCondition.userId = { in: [...followingIds, userId] };
-  }
+    return eq(tweetTable.visibility, "PUBLIC");
+  };
 
   // 1. 일반 트윗 조회
-  const tweetsPromise = prisma.tweet.findMany({
-    where: whereCondition,
-    take: limit + 1,
-    orderBy: { createdAt: "desc" },
-    include: {
+  const tweetsPromise = db.query.tweets.findMany({
+    where: (tweets, { and, isNull, lt, or, like }) => {
+      const conditions = [
+        isNull(tweets.deletedAt),
+        isNull(tweets.parentId),
+        getVisibilityFilter(tweets)
+      ];
+      if (cursor) conditions.push(lt(tweets.createdAt, cursor));
+      if (locationFilter) {
+        conditions.push(or(
+          like(tweets.country, `%${locationFilter}%`),
+          like(tweets.city, `%${locationFilter}%`)
+        ));
+      }
+      if (feedType === "following" && userId) {
+        conditions.push(inArray(tweets.userId, [...followingIds, userId].length > 0 ? [...followingIds, userId] : ["__none__"]));
+      }
+      return and(...conditions);
+    },
+    limit: limit + 1,
+    orderBy: (tweets, { desc }) => [desc(tweets.createdAt)],
+    with: {
       user: true,
       media: true,
-      _count: { select: { likes: true, replies: true, retweets: true } },
-      likes: userId ? { where: { userId }, select: { userId: true } } : false,
-      retweets: userId ? { where: { userId }, select: { userId: true } } : false,
-      bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
-      tags: { include: { travelTag: true } }
+      likes: userId ? { where: (likes, { eq }) => eq(likes.userId, userId), columns: { userId: true } } : undefined,
+      retweets: userId ? { where: (retweets, { eq }) => eq(retweets.userId, userId), columns: { userId: true } } : undefined,
+      bookmarks: userId ? { where: (bookmarks, { eq }) => eq(bookmarks.userId, userId), columns: { userId: true } } : undefined,
+      tags: { with: { travelTag: true } }
     }
   });
 
-  // 2. 리트윗 조회 (삭제되지 않은 원본 트윗이 있는 경우만)
-  const retweetAndConditions: any[] = [visibilityFilter]; // 원본 트윗의 공개 범위 체크
-
-  // 위치 필터를 리트윗 쿼리에도 적용
-  if (locationFilter) {
-    retweetAndConditions.push({
-      OR: [
-        { country: { contains: locationFilter } },
-        { city: { contains: locationFilter } }
-      ]
-    });
-  }
-
-  const retweetValues: any = {
-    ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
-    tweet: {
-      deletedAt: null,
-      AND: retweetAndConditions
-    }
-  };
-
-  if (feedType === "following" && userId) {
-    retweetValues.userId = { in: followingIds };
-  }
-
-  const retweetsPromise = prisma.retweet.findMany({
-    where: retweetValues,
-    take: limit + 1,
-    orderBy: { createdAt: "desc" },
-    include: {
+  // 2. 리트윗 조회
+  const retweetsPromise = db.query.retweets.findMany({
+    where: (retweets, { and, lt }) => {
+      const conditions = [];
+      if (cursor) conditions.push(lt(retweets.createdAt, cursor));
+      if (feedType === "following" && userId) {
+        conditions.push(inArray(retweets.userId, followingIds.length > 0 ? followingIds : ["__none__"]));
+      }
+      return and(...conditions);
+    },
+    limit: limit + 1,
+    orderBy: (retweets, { desc }) => [desc(retweets.createdAt)],
+    with: {
       user: true,
       tweet: {
-        include: {
+        with: {
           user: true,
           media: true,
-          _count: { select: { likes: true, replies: true, retweets: true } },
-          likes: userId ? { where: { userId }, select: { userId: true } } : false,
-          retweets: userId ? { where: { userId }, select: { userId: true } } : false,
-          bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
-          tags: { include: { travelTag: true } }
+          likes: userId ? { where: (likes, { eq }) => eq(likes.userId, userId), columns: { userId: true } } : undefined,
+          retweets: userId ? { where: (retweets, { eq }) => eq(retweets.userId, userId), columns: { userId: true } } : undefined,
+          bookmarks: userId ? { where: (bookmarks, { eq }) => eq(bookmarks.userId, userId), columns: { userId: true } } : undefined,
+          tags: { with: { travelTag: true } }
         }
       }
     }
   });
 
-  const [tweets, retweets] = await Promise.all([tweetsPromise, retweetsPromise]);
+  const [tweetsRaw, retweetsRaw] = await Promise.all([tweetsPromise, retweetsPromise]);
 
-  // 3. 두 리스트 병합 및 정렬 (createdAt 기준 내림차순)
+  // 필터링: 리트윗 대상 트윗이 삭제되었거나 공개 범위에 안 맞으면 거름
+  const validRetweetsRaw = retweetsRaw.filter(r => {
+    if (!r.tweet || r.tweet.deletedAt) return false;
+    // 공개 범위 체크 (리트윗 원본 트윗에 대해)
+    // Drizzle query API로 미리 필터링하는 게 좋지만, nested where가 복잡하므로 여기서 추가 체크
+    if (userId) {
+      if (r.tweet.visibility === "PRIVATE" && r.tweet.userId !== userId) return false;
+      if (r.tweet.visibility === "FOLLOWERS" && !followingIds.includes(r.tweet.userId) && r.tweet.userId !== userId) return false;
+    } else {
+      if (r.tweet.visibility !== "PUBLIC") return false;
+    }
+    return true;
+  });
+
+  // 3. 병합 및 정렬
   const combinedFeed = [
-    ...tweets.map(t => ({ type: "tweet", data: t, sortKey: t.createdAt })),
-    ...retweets.map(r => ({ type: "retweet", data: r, sortKey: r.createdAt }))
-  ].sort((a, b) => b.sortKey.getTime() - a.sortKey.getTime());
+    ...tweetsRaw.map(t => ({ type: "tweet", data: t, sortKey: t.createdAt })),
+    ...validRetweetsRaw.map(r => ({ type: "retweet", data: r, sortKey: r.createdAt }))
+  ].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 
-  // 4. 페이지네이션 슬라이싱
+  // 4. 페이지네이션
   const hasNextPage = combinedFeed.length > limit;
   const paginatedFeed = hasNextPage ? combinedFeed.slice(0, limit) : combinedFeed;
-  const nextCursor = paginatedFeed.length > 0 ? paginatedFeed[paginatedFeed.length - 1].sortKey.toISOString() : null;
+  const nextCursor = paginatedFeed.length > 0 ? paginatedFeed[paginatedFeed.length - 1].sortKey : null;
 
   // 5. 포맷팅
-  const formattedTweets = paginatedFeed.map(item => {
+  const formattedTweets = await Promise.all(paginatedFeed.map(async (item) => {
     if (item.type === "tweet") {
-      const tweet = item.data as typeof tweets[0];
+      const tweet = item.data as any;
+
+      // Get counts (As discussed earlier, subqueries or separate counts)
+      const [stats] = await db.select({
+        likes: sql<number>`(SELECT COUNT(*) FROM "Like" WHERE "tweetId" = ${tweet.id})`,
+        retweets: sql<number>`(SELECT COUNT(*) FROM "Retweet" WHERE "tweetId" = ${tweet.id})`,
+        replies: sql<number>`(SELECT COUNT(*) FROM "Tweet" WHERE "parentId" = ${tweet.id} AND "deletedAt" IS NULL)`,
+      }).from(schema.tweets).where(eq(schema.tweets.id, tweet.id));
+
       return {
         id: tweet.id,
         content: tweet.content,
-        createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-        fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+        createdAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+        fullCreatedAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
         user: {
           id: tweet.user.id,
           name: tweet.user.name || "알 수 없음",
           username: tweet.user.email.split("@")[0],
           image: tweet.user.image || tweet.user.avatarUrl,
         },
-        media: tweet.media.map(m => ({
+        media: tweet.media.map((m: any) => ({
           id: m.id,
           url: m.url,
           type: m.type as "IMAGE" | "VIDEO",
           altText: m.altText
         })),
         stats: {
-          likes: tweet._count.likes,
-          replies: tweet._count.replies,
-          retweets: tweet._count.retweets,
+          likes: stats.likes || 0,
+          replies: stats.replies || 0,
+          retweets: stats.retweets || 0,
           views: "0",
         },
-        isLiked: tweet.likes && tweet.likes.length > 0,
-        isRetweeted: tweet.retweets && tweet.retweets.length > 0,
-        isBookmarked: tweet.bookmarks && tweet.bookmarks.length > 0,
+        isLiked: (tweet.likes?.length || 0) > 0,
+        isRetweeted: (tweet.retweets?.length || 0) > 0,
+        isBookmarked: (tweet.bookmarks?.length || 0) > 0,
         location: tweet.locationName ? {
           name: tweet.locationName,
           latitude: tweet.latitude || undefined,
@@ -193,8 +179,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
           city: tweet.city || undefined,
           country: tweet.country || undefined,
         } : undefined,
-        travelDate: tweet.travelDate?.toISOString(),
-        tags: tweet.tags.map(t => ({
+        travelDate: tweet.travelDate,
+        tags: tweet.tags.map((t: any) => ({
           id: t.travelTag.id,
           name: t.travelTag.name,
           slug: t.travelTag.slug
@@ -203,35 +189,41 @@ export async function loader({ request }: LoaderFunctionArgs) {
         visibility: tweet.visibility as "PUBLIC" | "FOLLOWERS" | "PRIVATE"
       };
     } else {
-      // 리트윗인 경우
-      const retweetData = item.data as typeof retweets[0];
-      const tweet = retweetData.tweet; // 원본 트윗
+      const retweetData = item.data as any;
+      const tweet = retweetData.tweet;
+
+      const [stats] = await db.select({
+        likes: sql<number>`(SELECT COUNT(*) FROM "Like" WHERE "tweetId" = ${tweet.id})`,
+        retweets: sql<number>`(SELECT COUNT(*) FROM "Retweet" WHERE "tweetId" = ${tweet.id})`,
+        replies: sql<number>`(SELECT COUNT(*) FROM "Tweet" WHERE "parentId" = ${tweet.id} AND "deletedAt" IS NULL)`,
+      }).from(schema.tweets).where(eq(schema.tweets.id, tweet.id));
+
       return {
         id: tweet.id,
         content: tweet.content,
-        createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-        fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+        createdAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+        fullCreatedAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
         user: {
-          id: tweet.user.id, // 원본 작성자
+          id: tweet.user.id,
           name: tweet.user.name || "알 수 없음",
           username: tweet.user.email.split("@")[0],
           image: tweet.user.image || tweet.user.avatarUrl,
         },
-        media: tweet.media.map(m => ({
+        media: tweet.media.map((m: any) => ({
           id: m.id,
           url: m.url,
           type: m.type as "IMAGE" | "VIDEO",
           altText: m.altText
         })),
         stats: {
-          likes: tweet._count.likes,
-          replies: tweet._count.replies,
-          retweets: tweet._count.retweets,
+          likes: stats.likes || 0,
+          replies: stats.replies || 0,
+          retweets: stats.retweets || 0,
           views: "0",
         },
-        isLiked: tweet.likes && tweet.likes.length > 0,
-        isRetweeted: tweet.retweets && tweet.retweets.length > 0,
-        isBookmarked: tweet.bookmarks && tweet.bookmarks.length > 0,
+        isLiked: (tweet.likes?.length || 0) > 0,
+        isRetweeted: (tweet.retweets?.length || 0) > 0,
+        isBookmarked: (tweet.bookmarks?.length || 0) > 0,
         location: tweet.locationName ? {
           name: tweet.locationName,
           latitude: tweet.latitude || undefined,
@@ -240,21 +232,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
           city: tweet.city || undefined,
           country: tweet.country || undefined,
         } : undefined,
-        travelDate: tweet.travelDate?.toISOString(),
-        tags: tweet.tags.map(t => ({
+        travelDate: tweet.travelDate,
+        tags: tweet.tags.map((t: any) => ({
           id: t.travelTag.id,
           name: t.travelTag.name,
           slug: t.travelTag.slug
         })),
-        retweetedBy: { // 리트윗한 사람 정보
+        retweetedBy: {
           name: retweetData.user.name || "알 수 없음",
           username: retweetData.user.email.split("@")[0],
-          retweetedAt: DateTime.fromJSDate(retweetData.createdAt).setLocale("ko").toRelative() ?? undefined
+          retweetedAt: DateTime.fromISO(retweetData.createdAt).setLocale("ko").toRelative() ?? undefined
         },
         visibility: tweet.visibility as "PUBLIC" | "FOLLOWERS" | "PRIVATE"
       };
     }
-  });
+  }));
 
   return {
     session,
@@ -264,6 +256,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     locationFilter,
   };
 }
+
 
 export function meta({ }: MetaFunction) {
   return [

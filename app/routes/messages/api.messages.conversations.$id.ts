@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq, and, or, not, lt, desc } from "drizzle-orm";
 import { pusher } from "~/lib/pusher.server";
 import { getConversationChannelId, getUserChannelId } from "~/lib/pusher-shared";
 import { DateTime } from "luxon";
@@ -27,13 +29,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         }
 
         // 현재 사용자가 참여한 대화인지 확인
-        const participant = await prisma.dMParticipant.findUnique({
-            where: {
-                conversationId_userId: {
-                    conversationId,
-                    userId,
-                },
-            },
+        const participant = await db.query.dmParticipants.findFirst({
+            where: (participants, { and, eq }) =>
+                and(
+                    eq(participants.conversationId, conversationId),
+                    eq(participants.userId, userId)
+                )
         });
 
         if (!participant || participant.leftAt !== null) {
@@ -45,44 +46,43 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         const limit = parseInt(url.searchParams.get("limit") || "50", 10);
 
         // 메시지 조회 (커서 기반 페이지네이션)
-        const whereClause: any = {
-            conversationId,
-            // 삭제되지 않은 메시지만 (송신자나 수신자가 삭제하지 않은 메시지)
-            OR: [
-                { senderId: userId, deletedBySender: false },
-                {
-                    senderId: { not: userId },
-                    deletedByReceiver: false,
-                },
-            ],
-        };
+        const messages = await db.query.directMessages.findMany({
+            where: (messages, { and, or, eq, lt, ne }) => {
+                const conditions = [
+                    eq(messages.conversationId, conversationId),
+                    // 삭제되지 않은 메시지 조건
+                    or(
+                        and(eq(messages.senderId, userId), eq(messages.deletedBySender, false)),
+                        and(ne(messages.senderId, userId), eq(messages.deletedByReceiver, false))
+                    )
+                ];
 
-        if (cursor) {
-            whereClause.createdAt = { lt: new Date(cursor) };
-        }
+                if (cursor) {
+                    conditions.push(lt(messages.createdAt, cursor));
+                }
 
-        const messages = await prisma.directMessage.findMany({
-            where: whereClause,
-            take: limit + 1, // 다음 페이지 존재 여부 확인을 위해 +1
-            orderBy: { createdAt: "desc" },
-            include: {
+                return and(...conditions);
+            },
+            limit: limit + 1,
+            orderBy: (messages, { desc }) => [desc(messages.createdAt)],
+            with: {
                 sender: {
-                    select: {
+                    columns: {
                         id: true,
                         name: true,
                         email: true,
                         image: true,
-                        avatarUrl: true,
-                    },
-                },
-            },
+                        avatarUrl: true
+                    }
+                }
+            }
         });
 
         const hasNextPage = messages.length > limit;
         const paginatedMessages = hasNextPage ? messages.slice(0, limit) : messages;
         const nextCursor =
             paginatedMessages.length > 0
-                ? paginatedMessages[paginatedMessages.length - 1].createdAt.toISOString()
+                ? paginatedMessages[paginatedMessages.length - 1].createdAt
                 : null;
 
         // 포맷팅 (최신순이므로 reverse)
@@ -97,10 +97,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
                 image: msg.sender.image || msg.sender.avatarUrl,
             },
             isRead: msg.isRead,
-            createdAt: msg.createdAt.toISOString(),
+            createdAt: msg.createdAt,
             mediaUrl: msg.mediaUrl,
-            mediaType: msg.mediaType,
-            fullCreatedAt: DateTime.fromJSDate(msg.createdAt)
+            mediaType: msg.mediaType as any,
+            fullCreatedAt: DateTime.fromISO(msg.createdAt)
                 .setLocale("ko")
                 .toLocaleString(DateTime.DATETIME_MED),
         }));
@@ -138,16 +138,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
         }
 
         // 현재 사용자가 참여한 대화인지 확인
-        const participant = await prisma.dMParticipant.findUnique({
-            where: {
-                conversationId_userId: {
-                    conversationId,
-                    userId,
-                },
-            },
-            include: {
-                conversation: true,
-            },
+        const participant = await db.query.dmParticipants.findFirst({
+            where: (participants, { and, eq }) =>
+                and(
+                    eq(participants.conversationId, conversationId),
+                    eq(participants.userId, userId)
+                ),
+            with: { conversation: true }
         });
 
         if (!participant || participant.leftAt !== null) {
@@ -166,15 +163,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
         }
 
         // 요청 수락 (isAccepted를 true로 변경)
-        const updatedConversation = await prisma.dMConversation.update({
-            where: { id: conversationId },
-            data: { isAccepted: true },
-            include: {
-                participants: {
-                    where: { leftAt: null },
-                    select: { userId: true },
-                },
-            },
+        await db.update(schema.dmConversations)
+            .set({ isAccepted: true })
+            .where(eq(schema.dmConversations.id, conversationId));
+
+        // Get participants for pusher
+        const participants = await db.query.dmParticipants.findMany({
+            where: (p, { eq, isNull }) => and(eq(p.conversationId, conversationId), isNull(p.leftAt)),
+            columns: { userId: true }
         });
 
         // Pusher 이벤트: 대화 수락 알림 전송
@@ -186,7 +182,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
             });
 
             // 다른 참여자들에게도 알림
-            const otherParticipants = updatedConversation.participants.filter(
+            const otherParticipants = participants.filter(
                 (p) => p.userId !== userId
             );
             for (const participant of otherParticipants) {
@@ -201,8 +197,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
         return data({
             success: true,
             conversation: {
-                id: updatedConversation.id,
-                isAccepted: updatedConversation.isAccepted,
+                id: conversationId,
+                isAccepted: true,
             },
         });
     } catch (error) {

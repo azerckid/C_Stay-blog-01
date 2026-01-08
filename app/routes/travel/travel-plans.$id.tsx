@@ -53,7 +53,9 @@ import { TweetCard } from "~/components/tweet/tweet-card";
 
 import { type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { travelPlans } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { useState, useEffect, useMemo } from "react";
 import { TravelMap } from "~/components/travel/travel-map";
@@ -67,39 +69,25 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         return data({ error: "잘못된 접근입니다." }, { status: 400 });
     }
 
-    const plan = await prisma.travelPlan.findUnique({
-        where: { id: planId },
-        include: {
+    const planData = await db.query.travelPlans.findFirst({
+        where: eq(travelPlans.id, planId),
+        with: {
             items: {
-                orderBy: { order: "asc" }
+                orderBy: (items, { asc }) => [asc(items.order)]
             },
             tweets: {
-                where: { deletedAt: null },
-                orderBy: { createdAt: "desc" },
-                include: {
+                where: (tweets, { isNull }) => isNull(tweets.deletedAt),
+                orderBy: (tweets, { desc }) => [desc(tweets.createdAt)],
+                with: {
                     user: true,
                     media: true,
-                    _count: {
-                        select: {
-                            likes: true,
-                            replies: true,
-                            retweets: true,
-                        }
-                    },
-                    likes: userId ? {
-                        where: { userId },
-                        select: { userId: true }
-                    } : false,
-                    retweets: userId ? {
-                        where: { userId },
-                        select: { userId: true }
-                    } : false,
-                    bookmarks: userId ? {
-                        where: { userId },
-                        select: { userId: true }
-                    } : false,
+                    // Fetching relations for counts (not ideal for huge scale but works for migration)
+                    likes: { columns: { userId: true } },
+                    retweets: { columns: { userId: true } },
+                    replies: { columns: { id: true } },
+                    bookmarks: { columns: { userId: true } },
                     tags: {
-                        include: {
+                        with: {
                             travelTag: true
                         }
                     },
@@ -109,58 +97,64 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         }
     });
 
-    if (!plan) {
+    if (!planData) {
         return data({ error: "여행 계획을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const formattedTweets = plan.tweets.map((tweet: any) => ({
-        id: tweet.id,
-        content: tweet.content,
-        createdAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
-        fullCreatedAt: DateTime.fromJSDate(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
-        user: {
-            id: tweet.user.id,
-            name: tweet.user.name || "알 수 없음",
-            username: tweet.user.email.split("@")[0],
-            image: tweet.user.image,
-        },
-        media: tweet.media.map((m: any) => ({
-            id: m.id,
-            url: m.url,
-            type: m.type as "IMAGE" | "VIDEO",
-            altText: m.altText
-        })),
-        stats: {
-            likes: tweet._count.likes,
-            replies: tweet._count.replies,
-            retweets: tweet._count.retweets,
-            views: "0",
-        },
-        isLiked: tweet.likes && tweet.likes.length > 0,
-        isRetweeted: tweet.retweets && tweet.retweets.length > 0,
-        isBookmarked: tweet.bookmarks && tweet.bookmarks.length > 0,
-        location: tweet.locationName ? {
-            name: tweet.locationName,
-            latitude: tweet.latitude,
-            longitude: tweet.longitude,
-            address: tweet.address,
-            city: tweet.city,
-            country: tweet.country,
-            travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
-        } : undefined,
-        tags: tweet.tags.map((t: any) => ({
-            id: t.travelTag.id,
-            name: t.travelTag.name,
-            slug: t.travelTag.slug
-        })),
-        travelPlan: tweet.travelPlan ? {
-            id: tweet.travelPlan.id,
-            title: tweet.travelPlan.title,
-        } : undefined,
-        travelDate: tweet.travelDate ? new Date(tweet.travelDate).toISOString() : null
-    }));
+    const formattedTweets = planData.tweets.map((tweet: any) => {
+        const isLiked = userId ? tweet.likes.some((l: any) => l.userId === userId) : false;
+        const isRetweeted = userId ? tweet.retweets.some((r: any) => r.userId === userId) : false;
+        const isBookmarked = userId ? tweet.bookmarks.some((b: any) => b.userId === userId) : false;
 
-    return { plan, tweets: formattedTweets };
+        return {
+            id: tweet.id,
+            content: tweet.content,
+            createdAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toRelative() || "방금 전",
+            fullCreatedAt: DateTime.fromISO(tweet.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+            user: {
+                id: tweet.user.id,
+                name: tweet.user.name || "알 수 없음",
+                username: tweet.user.email.split("@")[0],
+                image: tweet.user.image,
+            },
+            media: tweet.media.map((m: any) => ({
+                id: m.id,
+                url: m.url,
+                type: m.type as "IMAGE" | "VIDEO",
+                altText: m.altText
+            })),
+            stats: {
+                likes: tweet.likes.length,
+                replies: tweet.replies.length,
+                retweets: tweet.retweets.length,
+                views: "0",
+            },
+            isLiked,
+            isRetweeted,
+            isBookmarked,
+            location: tweet.locationName ? {
+                name: tweet.locationName,
+                latitude: tweet.latitude,
+                longitude: tweet.longitude,
+                address: tweet.address,
+                city: tweet.city,
+                country: tweet.country,
+                travelDate: tweet.travelDate ? new Date(tweet.travelDate).toLocaleDateString() : undefined,
+            } : undefined,
+            tags: tweet.tags.map((t: any) => ({
+                id: t.travelTag.id,
+                name: t.travelTag.name,
+                slug: t.travelTag.slug
+            })),
+            travelPlan: tweet.travelPlan ? {
+                id: tweet.travelPlan.id,
+                title: tweet.travelPlan.title,
+            } : undefined,
+            travelDate: tweet.travelDate ? new Date(tweet.travelDate).toISOString() : null
+        };
+    });
+
+    return { plan: planData, tweets: formattedTweets };
 }
 
 export default function TravelPlanDetailPage() {

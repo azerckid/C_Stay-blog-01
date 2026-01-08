@@ -1,7 +1,9 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { useLoaderData, useSearchParams, Link, useNavigate } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { users, follows } from "~/db/schema";
+import { eq, and } from "drizzle-orm";
 import { UserCard } from "~/components/user/user-card";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
@@ -20,56 +22,56 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
     if (!targetUserId) throw new Response("User Required", { status: 404 });
 
-    const targetUser = await prisma.user.findUnique({
-        where: { id: targetUserId },
-        select: { id: true, name: true, email: true }
+    const targetUser = await db.query.users.findFirst({
+        where: eq(users.id, targetUserId),
+        columns: { id: true, name: true, email: true }
     });
 
     if (!targetUser) throw new Response("User Not Found", { status: 404 });
 
-    let users: any[] = [];
+    let usersList: any[] = [];
 
     if (tab === "followers") {
-        const followers = await prisma.follow.findMany({
-            where: { followingId: targetUserId },
-            include: {
+        const followersList = await db.query.follows.findMany({
+            where: eq(follows.followingId, targetUserId),
+            with: {
                 follower: {
-                    include: {
+                    with: {
                         followedBy: currentUserId ? {
-                            where: { followerId: currentUserId },
-                            select: { id: true }
-                        } : false
+                            where: (f, { eq }) => eq(f.followerId, currentUserId),
+                            columns: { id: true }
+                        } : undefined
                     }
                 }
             }
         });
-        users = followers.map(f => ({
+        usersList = followersList.map(f => ({
             ...f.follower,
             isFollowing: (f.follower.followedBy?.length ?? 0) > 0,
             isCurrentUser: f.follower.id === currentUserId
         }));
     } else {
-        const following = await prisma.follow.findMany({
-            where: { followerId: targetUserId },
-            include: {
+        const followingList = await db.query.follows.findMany({
+            where: eq(follows.followerId, targetUserId),
+            with: {
                 following: {
-                    include: {
+                    with: {
                         followedBy: currentUserId ? {
-                            where: { followerId: currentUserId },
-                            select: { id: true }
-                        } : false
+                            where: (f, { eq }) => eq(f.followerId, currentUserId),
+                            columns: { id: true }
+                        } : undefined
                     }
                 }
             }
         });
-        users = following.map(f => ({
+        usersList = followingList.map(f => ({
             ...f.following,
             isFollowing: (f.following.followedBy?.length ?? 0) > 0,
             isCurrentUser: f.following.id === currentUserId
         }));
     }
 
-    const formattedUsers = users.map(user => ({
+    const formattedUsers = usersList.map(user => ({
         id: user.id,
         name: user.name,
         username: user.email.split("@")[0],

@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { dmParticipants, directMessages } from "~/db/schema";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import { pusher } from "~/lib/pusher.server";
 import { getConversationChannelId } from "~/lib/pusher-shared";
 
@@ -28,13 +30,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
         }
 
         // 현재 사용자가 참여한 대화인지 확인
-        const participant = await prisma.dMParticipant.findUnique({
-            where: {
-                conversationId_userId: {
-                    conversationId,
-                    userId,
-                },
-            },
+        const participant = await db.query.dmParticipants.findFirst({
+            where: and(
+                eq(dmParticipants.conversationId, conversationId),
+                eq(dmParticipants.userId, userId)
+            )
         });
 
         if (!participant || participant.leftAt !== null) {
@@ -42,29 +42,32 @@ export async function action({ request, params }: ActionFunctionArgs) {
         }
 
         // 내가 받은 메시지 중 읽지 않은 메시지들을 모두 읽음 처리
-        const unreadMessages = await prisma.directMessage.findMany({
-            where: {
-                conversationId,
-                senderId: { not: userId }, // 내가 보낸 메시지 제외
-                isRead: false,
-            },
-            select: { id: true },
+        // In Drizzle, we can select IDs first or update directly if logic permits.
+        // Drizzle `update` returns updated records when using `.returning()`.
+        // Here we need `unreadMessages` IDs for Pusher.
+        // So fetching IDs first is key.
+        const unreadMessages = await db.query.directMessages.findMany({
+            where: and(
+                eq(directMessages.conversationId, conversationId),
+                ne(directMessages.senderId, userId), // 내가 보낸 메시지 제외
+                eq(directMessages.isRead, false)
+            ),
+            columns: { id: true },
         });
 
         if (unreadMessages.length > 0) {
-            await prisma.directMessage.updateMany({
-                where: {
-                    id: { in: unreadMessages.map((m) => m.id) },
-                },
-                data: { isRead: true },
-            });
+            const messageIds = unreadMessages.map(m => m.id);
+
+            await db.update(directMessages)
+                .set({ isRead: true })
+                .where(inArray(directMessages.id, messageIds));
 
             // Pusher 이벤트 트리거: 상대방(메시지 발신자)에게 읽음 처리 알림
             try {
                 await pusher.trigger(getConversationChannelId(conversationId), "message-read", {
                     conversationId,
                     readBy: userId,
-                    messageIds: unreadMessages.map((m) => m.id),
+                    messageIds: messageIds,
                 });
             } catch (pusherError) {
                 console.error("Pusher trigger error:", pusherError);

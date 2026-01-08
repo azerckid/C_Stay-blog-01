@@ -3,12 +3,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { DateTime } from "luxon";
 import { cn } from "~/lib/utils";
 import type { MarkerClusterer as MarkerClustererType } from "@googlemaps/markerclusterer";
-import * as MarkerClustererPkg from "@googlemaps/markerclusterer";
-
-// SSR 및 다양한 모듈 형식 호환을 위한 처리
-const MarkerClusterer = typeof window !== "undefined"
-    ? (MarkerClustererPkg.MarkerClusterer || (MarkerClustererPkg as any).default?.MarkerClusterer || (MarkerClustererPkg as any).default)
-    : null;
+import pkg from "@googlemaps/markerclusterer";
+const { MarkerClusterer } = pkg;
 
 interface TravelMapProps {
     tweets: any[];
@@ -100,8 +96,8 @@ function Markers({ items, onMarkerClick }: { items: any[], onMarkerClick: (id: s
     // 클러스터러 초기화
     useEffect(() => {
         if (!map) return;
-        if (!clusterer.current && MarkerClusterer) {
-            clusterer.current = new (MarkerClusterer as any)({ map });
+        if (!clusterer.current) {
+            clusterer.current = new MarkerClusterer({ map });
         }
     }, [map]);
 

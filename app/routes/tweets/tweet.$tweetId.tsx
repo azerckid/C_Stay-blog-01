@@ -1,6 +1,8 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { Link, useLoaderData, useNavigate, redirect, data, useLocation } from "react-router";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { tweets } from "~/db/schema";
+import { eq, isNull, desc } from "drizzle-orm";
 import { useEffect, useState } from "react";
 import { DateTime } from "luxon";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -21,39 +23,28 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         throw new Response("잘못된 요청입니다.", { status: 400 });
     }
 
-    const tweet = await prisma.tweet.findUnique({
-        where: { id: tweetId },
-        include: {
-            // ... (keep existing includes, we need to check parentId first)
+    const tweet = await db.query.tweets.findFirst({
+        where: eq(tweets.id, tweetId),
+        with: {
             user: true,
-            _count: {
-                select: {
-                    likes: true,
-                    replies: true,
-                    retweets: true,
-                }
-            },
-            likes: userId ? { where: { userId }, select: { userId: true } } : false,
-            retweets: userId ? { where: { userId }, select: { userId: true } } : false,
-            bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
-            media: true,
-            tags: { include: { travelTag: true } },
+            likes: true, // Fetching all for count, specialized check later if needed is inefficient but safe for now.
             replies: {
-                where: { deletedAt: null },
-                orderBy: [
-                    { likes: { _count: "desc" } },
-                    { createdAt: "desc" }
-                ],
-                include: {
+                where: isNull(tweets.deletedAt),
+                orderBy: [desc(tweets.createdAt)], // Sorting replies by newest first (simple approach) or specialized join sort. Drizzle relations sort simple.
+                with: {
                     user: true,
                     media: true,
-                    _count: { select: { likes: true, replies: true, retweets: true } },
-                    likes: userId ? { where: { userId }, select: { userId: true } } : false,
-                    retweets: userId ? { where: { userId }, select: { userId: true } } : false,
-                    bookmarks: userId ? { where: { userId }, select: { userId: true } } : false,
-                    tags: { include: { travelTag: true } },
+                    likes: true,
+                    replies: true, // Nested replies count? (Original: select likes, replies, retweets counts)
+                    retweets: true,
+                    bookmarks: userId ? { where: (b, { eq }) => eq(b.userId, userId), columns: { userId: true } } : undefined,
+                    tags: { with: { travelTag: true } },
                 }
-            }
+            },
+            retweets: true,
+            bookmarks: userId ? { where: (b, { eq }) => eq(b.userId, userId), columns: { userId: true } } : undefined,
+            media: true,
+            tags: { with: { travelTag: true } },
         }
     });
 
@@ -72,13 +63,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         return redirect(`/tweet/${tweet.parentId}#${tweet.id}`);
     }
 
-    // ... (rest of logic)
-
+    // Mapping helper
     const formatTweetData = (t: any) => ({
         id: t.id,
         content: t.content,
-        createdAt: DateTime.fromJSDate(t.createdAt).setLocale("ko").toRelative() || "방금 전",
-        fullCreatedAt: DateTime.fromJSDate(t.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
+        createdAt: DateTime.fromISO(t.createdAt).setLocale("ko").toRelative() || "방금 전",
+        fullCreatedAt: DateTime.fromISO(t.createdAt).setLocale("ko").toLocaleString(DateTime.DATETIME_MED),
         user: {
             id: t.user.id,
             name: t.user.name || "알 수 없음",
@@ -86,14 +76,14 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             image: t.user.image,
         },
         stats: {
-            likes: t._count.likes,
-            replies: t._count.replies,
-            retweets: t._count.retweets,
+            likes: t.likes.length,
+            replies: t.replies.length,
+            retweets: t.retweets.length,
             views: "0",
         },
-        isLiked: t.likes && t.likes.length > 0,
-        isRetweeted: t.retweets && t.retweets.length > 0,
-        isBookmarked: t.bookmarks && t.bookmarks.length > 0,
+        isLiked: t.likes.some((l: any) => l.userId === userId),
+        isRetweeted: t.retweets.some((r: any) => r.userId === userId),
+        isBookmarked: (t.bookmarks?.length ?? 0) > 0,
         location: t.locationName ? {
             name: t.locationName,
             latitude: t.latitude,
@@ -102,7 +92,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             city: t.city,
             country: t.country,
         } : undefined,
-        travelDate: t.travelDate ? new Date(t.travelDate).toISOString() : null,
+        travelDate: t.travelDate, // already string in Drizzle
         media: t.media ? t.media.map((m: any) => ({
             id: m.id,
             url: m.url,
@@ -117,9 +107,37 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     });
 
     const formattedTweet = formatTweetData(tweet);
-    const formattedReplies = tweet.replies.map(formatTweetData);
+    // Sort replies: Original was by likes count desc, then date desc.
+    // Drizzle relations `orderBy` inside `findFirst` is limited without subqueries/joins for aggregation sort.
+    // We will sort in Javascript for simplicity.
+    const formattedReplies = tweet.replies.map(formatTweetData).sort((a: any, b: any) => {
+        // Sort by likes count desc
+        if (b.stats.likes !== a.stats.likes) {
+            return b.stats.likes - a.stats.likes;
+        }
+        // Then by createdAt desc (newest first) - string comparison works for ISO
+        return b.fullCreatedAt.localeCompare(a.fullCreatedAt); // Actually `createdAt` relative string is bad for sorting.
+        // We need raw date. Let's add rawDate to formatTweetData if strictly needed or just trust the DB sort if we could.
+        // But we didn't sort by likes in DB because Drizzle relation sort by aggregate is hard.
+        // Let's rely on basic DB sort (date) or add rawDate. 
+        // `formatTweetData` output doesn't have rawDate currently. 
+        // Let's add it. No, `formatTweetData` uses `t` which has raw ISO string.
+    });
 
-    return data({ tweet: formattedTweet, replies: formattedReplies });
+    // Correction: `formatTweetData` loses raw date access for valid sorting.
+    // Let's re-implement sort safely.
+    const repliesWithRaw = tweet.replies.map((r: any) => ({
+        ...formatTweetData(r),
+        _raw: r
+    })).sort((a: any, b: any) => {
+        const likesA = a._raw.likes.length;
+        const likesB = b._raw.likes.length;
+        if (likesB !== likesA) return likesB - likesA;
+        return new Date(b._raw.createdAt).getTime() - new Date(a._raw.createdAt).getTime();
+    }).map(({ _raw, ...rest }: any) => rest);
+
+
+    return data({ tweet: formattedTweet, replies: repliesWithRaw });
 }
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {

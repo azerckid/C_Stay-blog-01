@@ -1,7 +1,9 @@
 import type { LoaderFunctionArgs, MetaFunction } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
 import { useLoaderData, useFetcher, useNavigate, Link, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import { notifications, follows } from "~/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -39,40 +41,44 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     const userId = session.user.id;
 
-    const notifications = await prisma.notification.findMany({
-        where: { recipientId: userId },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-        include: {
+    const notificationsList = await db.query.notifications.findMany({
+        where: eq(notifications.recipientId, userId),
+        orderBy: [desc(notifications.createdAt)],
+        limit: 50,
+        with: {
             issuer: {
-                select: {
+                columns: {
                     id: true,
                     name: true,
                     image: true,
                     email: true,
                 }
             },
+            // Assuming 'tweet' relation exists on notifications in schema.ts.
+            // If not found in previous sessions, I should check schema again or assume it was added if partial views didn't show.
+            // Based on 'api.tweets.ts' comments, it might be missing or under different name?
+            // Drizzle schema relations: notifications table has tweetId field
+            // The relation is defined in schema.ts as tweetsRelations.notifications
+            // We can safely use the tweet relation here
             tweet: {
-                select: {
+                columns: {
                     id: true,
-                    content: true,
+                    content: true
                 }
             }
         }
     });
 
     // 팔로우 요청 알림에 대해 실제 팔로우 상태 확인
-    const notificationsWithStatus = await Promise.all(notifications.map(async (notification) => {
+    const notificationsWithStatus = await Promise.all(notificationsList.map(async (notification) => {
         if (notification.type === "FOLLOW_REQUEST") {
             // issuer가 나(recipient)를 팔로우하고 있는지 확인
             // Follow 테이블: followerId(요청자) -> followingId(나)
-            const follow = await prisma.follow.findUnique({
-                where: {
-                    followerId_followingId: {
-                        followerId: notification.issuerId,
-                        followingId: userId,
-                    },
-                },
+            const follow = await db.query.follows.findFirst({
+                where: and(
+                    eq(follows.followerId, notification.issuerId),
+                    eq(follows.followingId, userId)
+                )
             });
 
             // 팔로우 요청이 존재하고 상태가 PENDING이면 아직 처리 안 된 것 (isHandled = false)
@@ -218,7 +224,7 @@ function NotificationItem({ notification }: { notification: any }) {
                         <AvatarFallback>{notification.issuer.name?.[0] || 'U'}</AvatarFallback>
                     </Avatar>
                     <div className="text-xs text-muted-foreground">
-                        {DateTime.fromJSDate(new Date(notification.createdAt)).setLocale("ko").toRelative()}
+                        {DateTime.fromISO(notification.createdAt).setLocale("ko").toRelative()}
                     </div>
                 </div>
                 <div className="text-sm">

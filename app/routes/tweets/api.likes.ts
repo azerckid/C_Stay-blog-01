@@ -1,5 +1,7 @@
 import { type ActionFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
+import { db } from "~/db";
+import * as schema from "~/db/schema";
+import { eq, and, count, sql } from "drizzle-orm";
 import { getSession } from "~/lib/auth-utils.server";
 import { z } from "zod";
 
@@ -31,8 +33,8 @@ export async function action({ request }: ActionFunctionArgs) {
         const userId = session.user.id;
 
         // 트윗 존재 여부 확인
-        const tweet = await prisma.tweet.findUnique({
-            where: { id: targetTweetId },
+        const tweet = await db.query.tweets.findFirst({
+            where: (tweets, { eq }) => eq(tweets.id, targetTweetId),
         });
 
         if (!tweet) {
@@ -40,60 +42,60 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         // 이미 좋아요를 눌렀는지 확인
-        const existingLike = await prisma.like.findUnique({
-            where: {
-                userId_tweetId: {
-                    userId: userId,
-                    tweetId: targetTweetId,
-                },
-            },
+        const existingLike = await db.query.likes.findFirst({
+            where: (likes, { and, eq }) =>
+                and(
+                    eq(likes.userId, userId),
+                    eq(likes.tweetId, targetTweetId)
+                )
         });
 
         let liked = false;
 
         if (existingLike) {
             // 이미 좋아요가 있다면 삭제 (좋아요 취소)
-            await prisma.like.delete({
-                where: {
-                    userId_tweetId: {
-                        userId: userId,
-                        tweetId: targetTweetId,
-                    },
-                },
-            });
+            await db.delete(schema.likes)
+                .where(
+                    and(
+                        eq(schema.likes.userId, userId),
+                        eq(schema.likes.tweetId, targetTweetId)
+                    )
+                );
             liked = false;
         } else {
             // 좋아요가 없다면 생성 (좋아요)
-            await prisma.like.create({
-                data: {
-                    userId: userId,
-                    tweetId: targetTweetId,
-                },
+            await db.insert(schema.likes).values({
+                id: crypto.randomUUID(),
+                userId: userId,
+                tweetId: targetTweetId,
+                createdAt: new Date().toISOString(),
             });
             liked = true;
 
             // 알림 생성 (자신의 트윗이 아닐 경우)
             if (tweet.userId !== userId) {
-                await prisma.notification.create({
-                    data: {
-                        recipientId: tweet.userId,
-                        issuerId: userId,
-                        type: "LIKE",
-                        tweetId: targetTweetId,
-                    },
+                await db.insert(schema.notifications).values({
+                    id: crypto.randomUUID(),
+                    recipientId: tweet.userId,
+                    issuerId: userId,
+                    type: "LIKE",
+                    tweetId: targetTweetId,
+                    isRead: false,
+                    createdAt: new Date().toISOString(),
                 });
             }
         }
 
         // 최신 좋아요 개수 조회
-        const count = await prisma.like.count({
-            where: { tweetId: targetTweetId },
-        });
+        const [{ value: likeCount }] = await db
+            .select({ value: count() })
+            .from(schema.likes)
+            .where(eq(schema.likes.tweetId, targetTweetId));
 
         return data({
             success: true,
             liked,
-            count,
+            count: likeCount,
             message: liked ? "좋아요를 눌렀습니다." : "좋아요를 취소했습니다."
         }, { status: 200 });
 

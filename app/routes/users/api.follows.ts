@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
 import { auth } from "~/lib/auth";
+import { db } from "~/db";
+import { users, follows, notifications } from "~/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
 const followSchema = z.object({
@@ -40,8 +42,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
 
         // 5. 대상 유저 존재 여부 확인
-        const targetUser = await prisma.user.findUnique({
-            where: { id: targetUserId }
+        const targetUser = await db.query.users.findFirst({
+            where: eq(users.id, targetUserId)
         });
 
         if (!targetUser) {
@@ -51,20 +53,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // 6. Intent에 따른 로직 분기
         if (intent === "toggle") {
             // 기존 로직: 내가 상대를 팔로우/언팔로우
-            const existingFollow = await prisma.follow.findUnique({
-                where: {
-                    followerId_followingId: {
-                        followerId: userId,
-                        followingId: targetUserId,
-                    },
-                },
+            const existingFollow = await db.query.follows.findFirst({
+                where: and(
+                    eq(follows.followerId, userId),
+                    eq(follows.followingId, targetUserId)
+                )
             });
 
             if (existingFollow) {
                 // 언팔로우 또는 요청 취소
-                await prisma.follow.delete({
-                    where: { id: existingFollow.id },
-                });
+                await db.delete(follows).where(eq(follows.id, existingFollow.id));
                 const message = existingFollow.status === "PENDING" ? "팔로우 요청이 취소되었습니다." : "언팔로우했습니다.";
                 return data({ success: true, isFollowing: false, isPending: false, message });
             } else {
@@ -72,21 +70,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 const isPrivate = (targetUser as any).isPrivate; // 타입 정의 이슈 회피
                 const status = isPrivate ? "PENDING" : "ACCEPTED";
 
-                await prisma.follow.create({
-                    data: {
-                        followerId: userId,
-                        followingId: targetUserId,
-                        status: status,
-                    },
+                await db.insert(follows).values({
+                    id: crypto.randomUUID(),
+                    followerId: userId,
+                    followingId: targetUserId,
+                    status: status,
                 });
 
                 // 알림 생성
-                await prisma.notification.create({
-                    data: {
-                        recipientId: targetUserId,
-                        issuerId: userId,
-                        type: isPrivate ? "FOLLOW_REQUEST" : "FOLLOW",
-                    },
+                await db.insert(notifications).values({
+                    id: crypto.randomUUID(),
+                    recipientId: targetUserId,
+                    issuerId: userId,
+                    type: isPrivate ? "FOLLOW_REQUEST" : "FOLLOW",
+                    isRead: false
                 });
 
                 if (isPrivate) {
@@ -98,13 +95,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         } else {
             // Accept/Reject 로직: 상대가 나를 팔로우한 요청을 처리
             // targetUserId가 요청자(Follower), userId가 나(Following)
-            const existingRequest = await prisma.follow.findUnique({
-                where: {
-                    followerId_followingId: {
-                        followerId: targetUserId,
-                        followingId: userId,
-                    },
-                },
+            const existingRequest = await db.query.follows.findFirst({
+                where: and(
+                    eq(follows.followerId, targetUserId),
+                    eq(follows.followingId, userId)
+                )
             });
 
             if (!existingRequest) {
@@ -112,25 +107,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
 
             if (intent === "accept") {
-                await prisma.follow.update({
-                    where: { id: existingRequest.id },
-                    data: { status: "ACCEPTED" }
-                });
+                await db.update(follows)
+                    .set({ status: "ACCEPTED" })
+                    .where(eq(follows.id, existingRequest.id));
 
                 // 요청이 수락되었다는 알림을 상대방에게 전송
-                await prisma.notification.create({
-                    data: {
-                        recipientId: targetUserId,
-                        issuerId: userId,
-                        type: "FOLLOW_ACCEPTED",
-                    },
+                await db.insert(notifications).values({
+                    id: crypto.randomUUID(),
+                    recipientId: targetUserId,
+                    issuerId: userId,
+                    type: "FOLLOW_ACCEPTED",
+                    isRead: false
                 });
 
                 return data({ success: true, message: "팔로우 요청을 수락했습니다." });
             } else if (intent === "reject") {
-                await prisma.follow.delete({
-                    where: { id: existingRequest.id }
-                });
+                await db.delete(follows).where(eq(follows.id, existingRequest.id));
                 return data({ success: true, message: "팔로우 요청을 거절했습니다." });
             }
         }

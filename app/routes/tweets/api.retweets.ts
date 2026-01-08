@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs, data } from "react-router";
-import { prisma } from "~/lib/prisma.server";
 import { getSession } from "~/lib/auth-utils.server";
+import { db } from "~/db";
+import { tweets, retweets, notifications } from "~/db/schema";
+import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
 
 const retweetActionSchema = z.object({
@@ -28,11 +30,11 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         const { tweetId: targetTweetId } = result.data;
-        const userId = session.user.id;
+        const userId = session.user.id; // Corrected: session.user.id is string
 
         // 트윗 존재 여부 확인
-        const tweet = await prisma.tweet.findUnique({
-            where: { id: targetTweetId },
+        const tweet = await db.query.tweets.findFirst({
+            where: eq(tweets.id, targetTweetId)
         });
 
         if (!tweet) {
@@ -40,60 +42,54 @@ export async function action({ request }: ActionFunctionArgs) {
         }
 
         // 이미 리트윗 했는지 확인
-        const existingRetweet = await prisma.retweet.findUnique({
-            where: {
-                userId_tweetId: {
-                    userId: userId,
-                    tweetId: targetTweetId,
-                },
-            },
+        const existingRetweet = await db.query.retweets.findFirst({
+            where: and(
+                eq(retweets.userId, userId),
+                eq(retweets.tweetId, targetTweetId)
+            )
         });
 
         let retweeted = false;
 
         if (existingRetweet) {
             // 이미 리트윗했다면 삭제 (리트윗 취소)
-            await prisma.retweet.delete({
-                where: {
-                    userId_tweetId: {
-                        userId: userId,
-                        tweetId: targetTweetId,
-                    },
-                },
-            });
+            await db.delete(retweets)
+                .where(and(
+                    eq(retweets.userId, userId),
+                    eq(retweets.tweetId, targetTweetId)
+                ));
             retweeted = false;
         } else {
             // 리트윗하기
-            await prisma.retweet.create({
-                data: {
-                    userId: userId,
-                    tweetId: targetTweetId,
-                },
+            await db.insert(retweets).values({
+                id: crypto.randomUUID(),
+                userId: userId,
+                tweetId: targetTweetId,
             });
             retweeted = true;
 
             // 알림 생성 (자신의 트윗이 아닐 경우)
             if (tweet.userId !== userId) {
-                await prisma.notification.create({
-                    data: {
-                        recipientId: tweet.userId,
-                        issuerId: userId,
-                        type: "RETWEET",
-                        tweetId: targetTweetId,
-                    },
+                await db.insert(notifications).values({
+                    id: crypto.randomUUID(),
+                    recipientId: tweet.userId,
+                    issuerId: userId,
+                    type: "RETWEET",
+                    tweetId: targetTweetId,
+                    isRead: false
                 });
             }
         }
 
         // 최신 리트윗 개수 조회
-        const count = await prisma.retweet.count({
-            where: { tweetId: targetTweetId },
-        });
+        const [{ value: retweetCount }] = await db.select({ value: count() })
+            .from(retweets)
+            .where(eq(retweets.tweetId, targetTweetId));
 
         return data({
             success: true,
             retweeted,
-            count,
+            count: retweetCount,
             message: retweeted ? "리트윗했습니다." : "리트윗을 취소했습니다."
         }, { status: 200 });
 
