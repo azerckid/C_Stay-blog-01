@@ -349,11 +349,18 @@ export async function action({ request }: ActionFunctionArgs) {
                 groupName: conversation.groupName,
                 isAccepted: conversation.isAccepted,
                 participants: conversation.participants.map((p: any) => ({
-                    id: p.user.id,
-                    name: p.user.name || "알 수 없음",
-                    username: p.user.email.split("@")[0],
-                    image: p.user.image || p.user.avatarUrl,
-                    isPrivate: p.user.isPrivate,
+                    id: p.id,
+                    conversationId: p.conversationId,
+                    userId: p.userId,
+                    joinedAt: p.joinedAt,
+                    isAdmin: p.isAdmin,
+                    user: {
+                        id: p.user.id,
+                        name: p.user.name || "알 수 없음",
+                        email: p.user.email,
+                        image: p.user.image || p.user.avatarUrl,
+                        isPrivate: p.user.isPrivate,
+                    }
                 })),
             },
         });

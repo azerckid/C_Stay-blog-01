@@ -155,7 +155,7 @@ export async function action({ request }: ActionFunctionArgs) {
             sender: {
                 id: message.sender.id,
                 name: message.sender.name || "알 수 없음",
-                username: message.sender.email.split("@")[0],
+                username: message.sender.email?.split("@")[0] || "unknown",
                 image: message.sender.image || message.sender.avatarUrl,
             },
             isRead: message.isRead,

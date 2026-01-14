@@ -93,7 +93,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             sender: {
                 id: msg.sender.id,
                 name: msg.sender.name || "알 수 없음",
-                username: msg.sender.email.split("@")[0],
+                username: msg.sender.email?.split("@")[0] || "unknown",
                 image: msg.sender.image || msg.sender.avatarUrl,
             },
             isRead: msg.isRead,

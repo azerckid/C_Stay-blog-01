@@ -46,7 +46,7 @@ export function NewMessageModal({ isOpen, onClose, onSelectUser }: NewMessageMod
             toast.error(fetcher.data.error);
             return;
         }
-        
+
         if (fetcher.data?.users) {
             setUsers(fetcher.data.users);
         }
@@ -127,7 +127,7 @@ export function NewMessageModal({ isOpen, onClose, onSelectUser }: NewMessageMod
                                         {user.isPrivate && (
                                             <HugeiconsIcon icon={LockIcon} size={12} className="text-muted-foreground shrink-0" />
                                         )}
-                                        <span className="text-xs text-muted-foreground truncate">@{user.email.split("@")[0]}</span>
+                                        <span className="text-xs text-muted-foreground truncate">@{user?.email?.split("@")[0] || "unknown"}</span>
                                     </div>
                                     <p className="text-xs text-muted-foreground truncate font-normal">
                                         {user.isVerified ? "추천됨" : "팔로워 " + user.followerCount + "명"}

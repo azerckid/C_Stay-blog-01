@@ -684,7 +684,7 @@ export function MessageDrawer() {
                                                             {displayUser.isPrivate && (
                                                                 <HugeiconsIcon icon={LockIcon} size={14} className="text-muted-foreground shrink-0" />
                                                             )}
-                                                            <span className="text-sm text-muted-foreground truncate">@{displayUser.email.split("@")[0]}</span>
+                                                            <span className="text-sm text-muted-foreground truncate">@{displayUser?.email?.split("@")[0] || "unknown"}</span>
                                                             <span className="text-sm text-muted-foreground shrink-0">· 21주</span>
                                                         </div>
                                                         {conv.unreadCount > 0 && (
@@ -739,7 +739,7 @@ export function MessageDrawer() {
                                         <HugeiconsIcon icon={LockIcon} size={18} className="text-foreground shrink-0" />
                                     )}
                                 </div>
-                                <p className="text-muted-foreground text-sm">@{otherParticipant?.email.split("@")[0]}</p>
+                                <p className="text-muted-foreground text-sm">@{otherParticipant?.email?.split("@")[0] || "unknown"}</p>
                                 <p className="text-muted-foreground text-xs mt-2">{otherParticipant?.joinedAt}에 가입함 · {otherParticipant?.followerCount} 팔로워</p>
                                 <button className="mt-4 px-4 py-2 bg-foreground text-background rounded-full font-bold text-sm hover:opacity-90">
                                     프로필 보기

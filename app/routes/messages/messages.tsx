@@ -99,7 +99,7 @@ export default function MessagesLayout() {
                                             {user.isPrivate && (
                                                 <HugeiconsIcon icon={LockIcon} size={14} className="text-muted-foreground shrink-0" />
                                             )}
-                                            <span className="text-sm text-muted-foreground truncate">@{user.email.split("@")[0]}</span>
+                                            <span className="text-sm text-muted-foreground truncate">@{user?.email?.split("@")[0] || "unknown"}</span>
                                             <span className="text-sm text-muted-foreground shrink-0">· 21주</span>
                                         </div>
                                     </div>
