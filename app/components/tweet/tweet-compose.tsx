@@ -124,10 +124,14 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
     useEffect(() => {
         if (uploadFetcher.state === "idle" && uploadFetcher.data) {
             const result = uploadFetcher.data as any;
-            if (result.success && result.media) {
+            if (result && result.success && result.media) {
                 setAttachments(prev => [...prev, result.media]);
-            } else if (result.error) {
+            } else if (result && result.error) {
                 toast.error(result.error);
+            } else if (uploadFetcher.data) {
+                // Handle non-standard error responses (e.g., 500 platform error)
+                console.error("Upload failed with unexpected response:", uploadFetcher.data);
+                toast.error("업로드에 실패했습니다. 파일 크기(최대 4.5MB)를 확인해주세요.");
             }
         }
     }, [uploadFetcher.state, uploadFetcher.data]);
