@@ -16,7 +16,6 @@ dev.db-journal
 /generated/prisma
 
 # documentation
-docs/
 AGENTS.md
 
 # Development scripts and tools

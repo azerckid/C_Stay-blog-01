@@ -675,13 +675,13 @@ export function MessageDrawer() {
                                                 className="px-4 py-3 flex gap-3 hover:bg-accent/50 cursor-pointer transition-colors border-b border-border/50"
                                             >
                                                 <div className="h-12 w-12 rounded-full bg-muted border border-border overflow-hidden shrink-0">
-                                                    {displayUser.image && <img src={displayUser.image} alt={displayUser.name} className="h-full w-full object-cover" />}
+                                                    {displayUser?.image && <img src={displayUser.image} alt={displayUser?.name || "User"} className="h-full w-full object-cover" />}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between gap-1">
                                                         <div className="flex items-center gap-1 min-w-0">
-                                                            <span className="font-bold truncate">{displayUser.name}</span>
-                                                            {displayUser.isPrivate && (
+                                                            <span className="font-bold truncate">{displayUser?.name || "알 수 없음"}</span>
+                                                            {displayUser?.isPrivate && (
                                                                 <HugeiconsIcon icon={LockIcon} size={14} className="text-muted-foreground shrink-0" />
                                                             )}
                                                             <span className="text-sm text-muted-foreground truncate">@{displayUser?.email?.split("@")[0] || "unknown"}</span>
