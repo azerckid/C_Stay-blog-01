@@ -550,7 +550,8 @@ export function MessageDrawer() {
 
     // Derived state for other participant (assuming 1:1 mostly for now)
     // The API structure is participants: { user: UserBasic, ... }[]
-    const otherParticipant = selectedConv?.participants?.find((p: any) => p.user.id !== user?.id)?.user || selectedConv?.participants?.[0]?.user;
+    const participantsWithUser = selectedConv?.participants?.filter((p: any) => p.user) || [];
+    const otherParticipant = participantsWithUser.find((p: any) => p.user.id !== user?.id)?.user || participantsWithUser[0]?.user;
 
     // Filter logic is now handled by API based on tab
     const filteredConversations = conversations;
@@ -664,7 +665,8 @@ export function MessageDrawer() {
                             {selectedTab === "all" ? (
                                 filteredConversations.length > 0 ? (
                                     filteredConversations.map((conv) => {
-                                        const partner = conv.participants?.find((p: any) => p.user.id !== user?.id)?.user || conv.participants?.[0]?.user || { name: "알 수 없음", email: "unknown@staync.com" };
+                                        const participantsWithUser = conv.participants?.filter((p: any) => p.user) || [];
+                                        const partner = participantsWithUser.find((p: any) => p.user.id !== user?.id)?.user || participantsWithUser[0]?.user || { name: "알 수 없음", email: "unknown@staync.com" };
                                         const displayUser = partner;
                                         return (
                                             <div
