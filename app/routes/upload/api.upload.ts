@@ -1,9 +1,9 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs, data } from "react-router";
 import { getSession } from "~/lib/auth-utils.server";
-import { uploadToCloudinary } from "~/lib/cloudinary.server";
+import { getCloudinarySignature } from "~/lib/cloudinary.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-    return data({ message: "Upload API is active. Use POST to upload files." }, { status: 200 });
+    return data({ message: "Upload Signature API is active. Use POST to get signature." }, { status: 200 });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -20,57 +20,41 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     try {
-        // 3. FormData 파싱
-        const formData = await request.formData();
-        const file = formData.get("file") as File;
-
-        if (!file || !(file instanceof File)) {
-            console.error("[Upload API] No file in request body");
-            return data({ error: "No file provided" }, { status: 400 });
+        // 3. 클라이언트로부터 업로드 파라미터 수신 (예: folder)
+        let body;
+        try {
+            body = await request.json();
+        } catch (error) {
+            console.error("[Upload API] Failed to parse JSON:", error);
+            return data({ error: "Invalid JSON format" }, { status: 400 });
         }
 
-        // 4. 파일 유효성 검사 (크기, 타입 등)
-        const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-        console.log(`[Upload API] Received file: ${file.name}, size: ${file.size}, type: ${file.type}`);
+        const { folder = "staync", ...rest } = body;
 
-        if (file.size > MAX_SIZE) {
-            console.error(`[Upload API] File too large: ${file.size}`);
-            return data({ error: "File too large (Max 10MB)" }, { status: 400 });
-        }
+        // 4. 서명 생성
+        const paramsToSign = {
+            folder,
+            ...rest
+        };
 
-        const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/webm"];
-        if (!allowedTypes.includes(file.type)) {
-            console.error(`[Upload API] Unsupported type: ${file.type}`);
-            return data({ error: "Unsupported file type" }, { status: 400 });
-        }
+        const { signature, timestamp, apiKey, cloudName } = getCloudinarySignature(paramsToSign);
 
-        // 5. 버퍼로 변환 (서버리스 환경에서는 메모리에 주의해야 함)
-        console.log(`[Upload API] Converting to buffer: ${file.name}`);
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        console.log(`[Upload API] Signature generated for folder: ${folder}`);
 
-        // 6. Cloudinary 업로드
-        console.log(`[Upload API] Starting Cloudinary upload...`);
-        const isVideo = file.type.startsWith("video/");
-        const resourceType = isVideo ? "video" : "image";
-
-        const result = await uploadToCloudinary(buffer, file.name, resourceType);
-        console.log(`[Upload API] Success: ${result.url}`);
-
-        // 7. 결과 반환
+        // 5. 결과 반환
         return data({
             success: true,
-            media: {
-                url: result.url,
-                publicId: result.publicId,
-                type: result.type
-            }
+            signature,
+            timestamp,
+            apiKey,
+            cloudName,
+            folder
         });
 
     } catch (error: any) {
         console.error("[Upload API] Critical Error:", error.message || error);
         return data({
-            error: "File upload failed",
+            error: "Failed to generate upload signature",
             details: error.message || "Unknown error"
         }, { status: 500 });
     }

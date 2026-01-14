@@ -67,10 +67,10 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
     const [travelPlans, setTravelPlans] = useState<any[]>([]);
 
     const fetcher = useFetcher(); // Tweet submission
-    const uploadFetcher = useFetcher(); // File upload
     const travelPlansFetcher = useFetcher(); // Fetch travel plans
     const revalidator = useRevalidator();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isLocalUploading, setIsLocalUploading] = useState(false);
 
     // Initialize visibility based on user preference (isPrivate)
     useEffect(() => {
@@ -120,24 +120,9 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
         }
     }, [fetcher.state, fetcher.data, parentId, (session?.user as any)?.isPrivate]);
 
-    // File Upload Result
-    useEffect(() => {
-        if (uploadFetcher.state === "idle" && uploadFetcher.data) {
-            const result = uploadFetcher.data as any;
-            if (result && result.success && result.media) {
-                setAttachments(prev => [...prev, result.media]);
-            } else if (result && result.error) {
-                toast.error(result.error);
-            } else if (uploadFetcher.data) {
-                // Handle non-standard error responses (e.g., 500 platform error)
-                console.error("Upload failed with unexpected response:", uploadFetcher.data);
-                toast.error("업로드에 실패했습니다. 파일 크기(최대 4.5MB)를 확인해주세요.");
-            }
-        }
-    }, [uploadFetcher.state, uploadFetcher.data]);
 
-    const isSubmitting = fetcher.state !== "idle" || uploadFetcher.state !== "idle";
-    const isUploading = uploadFetcher.state !== "idle";
+    const isSubmitting = fetcher.state !== "idle" || isLocalUploading;
+    const isUploading = isLocalUploading;
 
     const handleSubmit = () => {
         if ((!content.trim() && attachments.length === 0) || isSubmitting) return;
@@ -172,27 +157,77 @@ export function TweetCompose({ parentId, placeholder = "무슨 일이 일어나�
         });
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         // Basic validation
-        if (file.size > 10 * 1024 * 1024) {
-            toast.error("파일 크기는 10MB를 초과할 수 없습니다.");
+        if (file.size > 100 * 1024 * 1024) { // 동영상을 고려해 100MB로 상향
+            toast.error("파일 크기는 100MB를 초과할 수 없습니다.");
             return;
         }
 
         if (attachments.length >= 4) {
-            toast.error("이미지는 최대 4장까지 첨부할 수 없습니다.");
+            toast.error("이미지는 최대 4장까지 첨부할 수 있습니다.");
             return;
         }
 
-        const formData = new FormData();
-        formData.append("file", file);
-        uploadFetcher.submit(formData, { method: "POST", action: "/api/upload", encType: "multipart/form-data" });
+        setIsLocalUploading(true);
 
-        // Reset input
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        try {
+            // 1. 서버로부터 업로드 서명 가져오기
+            const response = await fetch("/api/upload", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ folder: "staync" })
+            });
+
+            if (!response.ok) throw new Error("서버 인증에 실패했습니다.");
+
+            const signData = await response.json();
+            if (!signData.success) throw new Error(signData.error);
+
+            // 2. Cloudinary로 직접 업로드
+            const isVideo = file.type.startsWith("video/");
+            const resourceType = isVideo ? "video" : "image";
+
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("api_key", signData.apiKey);
+            formData.append("timestamp", signData.timestamp.toString());
+            formData.append("signature", signData.signature);
+            formData.append("folder", signData.folder);
+
+            const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${signData.cloudName}/${resourceType}/upload`;
+
+            const uploadResponse = await fetch(cloudinaryUrl, {
+                method: "POST",
+                body: formData
+            });
+
+            if (!uploadResponse.ok) {
+                const errorData = await uploadResponse.json();
+                throw new Error(errorData.error?.message || "Cloudinary 업로드에 실패했습니다.");
+            }
+
+            const result = await uploadResponse.json();
+
+            // 3. 첨부 파일 목록 업데이트
+            setAttachments(prev => [...prev, {
+                url: result.secure_url,
+                publicId: result.public_id,
+                type: result.resource_type === "video" ? "video" : "image"
+            }]);
+
+            toast.success("파일이 업로드되었습니다.");
+
+        } catch (error: any) {
+            console.error("Upload Error:", error);
+            toast.error(error.message || "업로드 중 오류가 발생했습니다.");
+        } finally {
+            setIsLocalUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
     };
 
     const removeAttachment = (index: number) => {

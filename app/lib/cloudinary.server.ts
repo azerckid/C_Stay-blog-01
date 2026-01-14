@@ -77,5 +77,25 @@ export async function uploadToCloudinary(
 }
 
 export async function deleteFromCloudinary(publicId: string, type: "image" | "video" = "image") {
+    validateConfig();
     return cloudinary.uploader.destroy(publicId, { resource_type: type });
+}
+
+export function getCloudinarySignature(paramsToSign: Record<string, any>) {
+    validateConfig();
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const signature = cloudinary.utils.api_sign_request(
+        {
+            ...paramsToSign,
+            timestamp,
+        },
+        process.env.CLOUDINARY_API_SECRET!
+    );
+
+    return {
+        signature,
+        timestamp,
+        apiKey: process.env.CLOUDINARY_API_KEY!,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
+    };
 }
