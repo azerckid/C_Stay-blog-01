@@ -319,6 +319,19 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
         bookmarkFetcher.submit({ tweetId: id }, { method: "POST", action: "/api/bookmarks" });
     };
 
+    const handleShare = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!id) return;
+        const url = `${window.location.origin}/tweet/${id}`;
+        navigator.clipboard.writeText(url)
+            .then(() => {
+                toast.success("링크가 클립보드에 복사되었습니다.");
+            })
+            .catch(() => {
+                toast.error("링크 복사에 실패했습니다.");
+            });
+    };
+
     // ... (useEffect 유지)
     // 좋아요 API 응답 처리
     useEffect(() => {
@@ -607,7 +620,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-between mt-3 text-muted-foreground w-full max-w-md">
-                    <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3" onClick={(e) => e.stopPropagation()}>
+                    <button className="flex items-center gap-2 group/action hover:text-primary transition-colors pr-3">
                         <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
                             <HugeiconsIcon icon={Comment01Icon} strokeWidth={2} className="h-4.5 w-4.5" />
                         </div>
@@ -726,7 +739,7 @@ export function TweetCard({ id, user, content, createdAt, fullCreatedAt, stats, 
                         </DropdownMenuContent>
                     </DropdownMenu>
 
-                    <button className="flex items-center group/action hover:text-primary transition-colors">
+                    <button onClick={handleShare} className="flex items-center group/action hover:text-primary transition-colors">
                         <div className="p-2 group-hover/action:bg-primary/10 rounded-full transition-colors">
                             <HugeiconsIcon icon={Share01Icon} strokeWidth={2} className="h-4.5 w-4.5" />
                         </div>
