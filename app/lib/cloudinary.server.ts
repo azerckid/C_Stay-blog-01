@@ -3,17 +3,36 @@ import { v2 as cloudinary } from "cloudinary";
 // Actually, we can just use standard node streams.
 
 // Cloudinary Configuration
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+function validateConfig() {
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudName || !apiKey || !apiSecret) {
+        throw new Error(
+            `Cloudinary configuration missing: ${[
+                !cloudName && "CLOUDINARY_CLOUD_NAME",
+                !apiKey && "CLOUDINARY_API_KEY",
+                !apiSecret && "CLOUDINARY_API_SECRET",
+            ]
+                .filter(Boolean)
+                .join(", ")}`
+        );
+    }
+
+    cloudinary.config({
+        cloud_name: cloudName,
+        api_key: apiKey,
+        api_secret: apiSecret,
+    });
+}
 
 export async function uploadToCloudinary(
     data: AsyncIterable<Uint8Array> | Buffer,
     filename?: string,
     resourceType: "image" | "video" | "auto" = "auto"
 ): Promise<{ url: string; publicId: string; type: "image" | "video" }> {
+    validateConfig();
     return new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
             {
