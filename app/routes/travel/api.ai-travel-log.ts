@@ -23,7 +23,7 @@ export async function action({ request }: ActionFunctionArgs) {
         console.log(`[AI Diagnostic] Using API Key starting with: ${apiKey.substring(0, 6)}...`);
 
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const stylePrompts = {
             emotional: "따뜻하고 감성적인 분위기로, 풍부한 표현을 사용하여 100자 내외로 작성해줘. 독백하듯 깊은 여운을 주는 문체여야 해.",
