@@ -33,6 +33,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [generatedResult, setGeneratedResult] = useState<{ content: string, image: string } | null>(null);
+    const [generatedByDictation, setGeneratedByDictation] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [transcribedText, setTranscribedText] = useState("");
     const [currentLocation, setCurrentLocation] = useState<{ name: string; lat?: number; lng?: number }>({ name: "위치 파악 중..." });
@@ -73,6 +74,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
     useEffect(() => {
         if (isOpen) {
             setGeneratedResult(null);
+            setGeneratedByDictation(false);
             setTranscribedText("");
             // 위치 정보 가져오기
             if ("geolocation" in navigator) {
@@ -165,6 +167,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                             content: transcribedText.trim() || "음성 내용을 입력해 주세요.",
                             image: imageData
                         });
+                        setGeneratedByDictation(true);
                     } else {
                         toast.error("사진 캡처에 실패했습니다.");
                     }
@@ -220,11 +223,37 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
             const result = await response.json();
             if (result.success) {
                 setGeneratedResult({ content: result.content, image: imageData });
+                setGeneratedByDictation(false);
             } else {
                 throw new Error(result.error);
             }
         } catch (error: any) {
             toast.error(error.message || "여행기 생성에 실패했습니다.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    /** 직접 쓰기 결과를 AI로 다듬기 (결과 화면에서만 호출) */
+    const handlePolishWithAi = async () => {
+        if (!generatedResult || isGenerating) return;
+        setIsGenerating(true);
+        try {
+            const formData = new FormData();
+            formData.append("image", generatedResult.image);
+            formData.append("voiceText", generatedResult.content);
+            formData.append("style", "emotional");
+            formData.append("location", currentLocation.name);
+            const response = await fetch("/api/ai-travel-log", { method: "POST", body: formData });
+            const result = await response.json();
+            if (result.success) {
+                setGeneratedResult({ content: result.content, image: generatedResult.image });
+                setGeneratedByDictation(false);
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error: any) {
+            toast.error(error.message || "AI 다듬기에 실패했습니다.");
         } finally {
             setIsGenerating(false);
         }
@@ -465,34 +494,57 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                             {isEditing ? "문장을 수정하고 바깥을 클릭하세요" : "문장을 터치하여 직접 수정할 수 있습니다"}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mt-2">
-                            <button
-                                onClick={() => {
-                                    setGeneratedResult(null);
-                                    setIsEditing(false);
-                                }}
-                                className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white/10 text-white font-bold hover:bg-white/20 transition-all text-sm"
-                            >
-                                <HugeiconsIcon icon={ReloadIcon} size={18} />
-                                다시 하기
-                            </button>
-                            <button
-                                onClick={handlePublish}
-                                disabled={isEditing || isGenerating}
-                                className={cn(
-                                    "flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all shadow-lg text-sm",
-                                    (isEditing || isGenerating)
-                                        ? "bg-slate-700 text-white/50 cursor-not-allowed"
-                                        : "bg-primary text-white hover:opacity-90 shadow-primary/20"
-                                )}
-                            >
-                                {isGenerating ? (
-                                    <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                                ) : (
-                                    <HugeiconsIcon icon={Tick01Icon} size={18} />
-                                )}
-                                {isGenerating ? "게시 중..." : "확인 및 게시"}
-                            </button>
+                        <div className="flex flex-col gap-3 mt-2">
+                            {generatedByDictation && (
+                                <button
+                                    type="button"
+                                    onClick={handlePolishWithAi}
+                                    disabled={isEditing || isGenerating}
+                                    className={cn(
+                                        "flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all",
+                                        (isEditing || isGenerating)
+                                            ? "bg-slate-700 text-white/50 cursor-not-allowed"
+                                            : "bg-white/15 text-white hover:bg-white/25 border border-white/10"
+                                    )}
+                                >
+                                    {isGenerating ? (
+                                        <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                    ) : (
+                                        <HugeiconsIcon icon={AiIdeaIcon} size={18} />
+                                    )}
+                                    {isGenerating ? "다듬는 중..." : "AI로 다듬기"}
+                                </button>
+                            )}
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => {
+                                        setGeneratedResult(null);
+                                        setGeneratedByDictation(false);
+                                        setIsEditing(false);
+                                    }}
+                                    className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white/10 text-white font-bold hover:bg-white/20 transition-all text-sm"
+                                >
+                                    <HugeiconsIcon icon={ReloadIcon} size={18} />
+                                    다시 하기
+                                </button>
+                                <button
+                                    onClick={handlePublish}
+                                    disabled={isEditing || isGenerating}
+                                    className={cn(
+                                        "flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all shadow-lg text-sm",
+                                        (isEditing || isGenerating)
+                                            ? "bg-slate-700 text-white/50 cursor-not-allowed"
+                                            : "bg-primary text-white hover:opacity-90 shadow-primary/20"
+                                    )}
+                                >
+                                    {isGenerating ? (
+                                        <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                    ) : (
+                                        <HugeiconsIcon icon={Tick01Icon} size={18} />
+                                    )}
+                                    {isGenerating ? "게시 중..." : "확인 및 게시"}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
