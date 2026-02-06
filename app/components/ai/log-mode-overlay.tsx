@@ -310,7 +310,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
     if (!isOpen) return null;
 
     return (
-        <div className={cn("fixed inset-0 z-[100] bg-black overflow-hidden flex animate-in fade-in duration-300", isLandscape ? "flex-row" : "flex-col")}>
+        <div className={cn("fixed inset-0 z-100 bg-black overflow-hidden flex animate-in fade-in duration-300", isLandscape ? "flex-row" : "flex-col")}>
             {/* Camera + Top Bar 영역 (Landscape 시 flex-1로 카메라 영역 확보) */}
             <div className={cn("relative", isLandscape ? "flex-1 min-w-0" : "contents")}>
                 {/* Camera Preview Placeholder / Real View */}
@@ -585,8 +585,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
             <div className={cn(
                 "absolute pointer-events-none",
                 isLandscape
-                    ? "right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-black/70 to-transparent"
-                    : "bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent"
+                    ? "right-0 top-0 bottom-0 w-24 bg-linear-to-l from-black/70 to-transparent"
+                    : "bottom-0 left-0 right-0 h-1/2 bg-linear-to-t from-black/80 to-transparent"
             )} />
         </div>
     );
