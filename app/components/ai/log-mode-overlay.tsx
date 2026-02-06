@@ -354,7 +354,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                     "relative z-10 flex flex-col items-center animate-in slide-in-from-bottom duration-500",
                     isLandscape ? "absolute right-0 top-0 bottom-0 w-[140px] justify-center gap-4 p-4" : "mt-auto p-6 pb-12 md:pb-8 gap-8"
                 )}>
-                    {/* Style Selector */}
+                    {/* Style Selector (녹음 중에는 카메라 영역 확보를 위해 숨김) */}
+                    {!isRecording && (
                     <div className={cn(
                         "w-full grid gap-2 rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/10 p-1.5",
                         isLandscape ? "grid-cols-1 max-w-none" : "max-w-sm grid-cols-3 gap-3"
@@ -425,6 +426,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                             <span className="text-[11px] font-bold">직접 쓰기</span>
                         </button>
                     </div>
+                    )}
 
                     {/* Speech Transcript Preview (Landscape: compact) */}
                     {transcribedText && (
