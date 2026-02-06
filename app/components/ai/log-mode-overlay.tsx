@@ -11,7 +11,8 @@ import {
     AiViewIcon,
     Tick01Icon,
     ReloadIcon,
-    Camera01Icon
+    Camera01Icon,
+    TextIcon
 } from "@hugeicons/core-free-icons";
 import { cn } from "~/lib/utils";
 import { toast } from "sonner";
@@ -22,7 +23,7 @@ interface LogModeOverlayProps {
     onClose: () => void;
 }
 
-type WritingStyle = "emotional" | "information" | "witty" | "auto";
+type WritingStyle = "emotional" | "information" | "witty" | "auto" | "dictation";
 
 export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
     const navigate = useNavigate();
@@ -134,6 +135,19 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
         }
     }, [stream]);
 
+    /** 비디오 현재 프레임을 JPEG Base64로 캡처 (generateLog / 직접 쓰기 공용) */
+    const captureFrame = (): string | null => {
+        const video = videoRef.current;
+        if (!video || !video.videoWidth) return null;
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+        ctx.drawImage(video, 0, 0);
+        return canvas.toDataURL("image/jpeg", 0.8);
+    };
+
     const handleToggleRecording = () => {
         if (!recognition) {
             toast.error("이 브라우저는 음성 인식을 지원하지 않습니다.");
@@ -143,7 +157,20 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
         if (isRecording) {
             recognition.stop();
             setIsRecording(false);
-            // 약간의 지연을 주어 마지막 음성 인식 결과가 반영되도록 함
+            if (selectedStyle === "dictation") {
+                setTimeout(() => {
+                    const imageData = captureFrame();
+                    if (imageData) {
+                        setGeneratedResult({
+                            content: transcribedText.trim() || "음성 내용을 입력해 주세요.",
+                            image: imageData
+                        });
+                    } else {
+                        toast.error("사진 캡처에 실패했습니다.");
+                    }
+                }, 500);
+                return;
+            }
             setTimeout(() => {
                 generateLog();
             }, 500);
@@ -165,21 +192,15 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
             console.error("Stream or videoRef missing");
             return;
         }
+        const imageData = captureFrame();
+        if (!imageData) {
+            toast.error("사진 캡처에 실패했습니다.");
+            return;
+        }
         setIsGenerating(true);
 
         try {
-            // 1. 사진 캡처
-            const video = videoRef.current;
-            const canvas = document.createElement("canvas");
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) throw new Error("Could not get canvas context");
-
-            ctx.drawImage(video, 0, 0);
-            const imageData = canvas.toDataURL("image/jpeg", 0.8);
-
-            // 2. API 호출
+            // API 호출
             const formData = new FormData();
             formData.append("image", imageData);
 
@@ -334,6 +355,18 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                         >
                             <HugeiconsIcon icon={Camera01Icon} size={20} />
                             <span className="text-[11px] font-bold">스마트 분석</span>
+                        </button>
+                        <button
+                            onClick={() => setSelectedStyle("dictation")}
+                            className={cn(
+                                "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all duration-300",
+                                selectedStyle === "dictation"
+                                    ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
+                                    : "text-white/60 hover:text-white"
+                            )}
+                        >
+                            <HugeiconsIcon icon={TextIcon} size={20} />
+                            <span className="text-[11px] font-bold">직접 쓰기</span>
                         </button>
                     </div>
 
