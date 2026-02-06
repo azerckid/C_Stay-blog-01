@@ -40,6 +40,16 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
 
     // STT용 Recognition 객체
     const [recognition, setRecognition] = useState<any>(null);
+    const [isLandscape, setIsLandscape] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const mq = window.matchMedia("(orientation: landscape)");
+        const handler = (e: MediaQueryListEvent) => setIsLandscape(e.matches);
+        setIsLandscape(mq.matches);
+        mq.addEventListener("change", handler);
+        return () => mq.removeEventListener("change", handler);
+    }, []);
 
     useEffect(() => {
         if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "speechRecognition" in window)) {
@@ -300,47 +310,60 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black overflow-hidden flex flex-col animate-in fade-in duration-300">
-            {/* Camera Preview Placeholder / Real View */}
-            <div className="absolute inset-0 z-0">
-                {stream ? (
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover"
-                    />
-                ) : (
-                    <div className="w-full h-full bg-slate-900 flex items-center justify-center">
-                        <HugeiconsIcon icon={AiViewIcon} className="w-16 h-16 text-white/20 animate-pulse" />
-                    </div>
-                )}
-            </div>
-
-            {/* Top Bar: Location & Close */}
-            <div className="relative z-10 flex items-center justify-between p-4 pt-12 md:pt-6">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90">
-                    <HugeiconsIcon icon={Location01Icon} size={16} />
-                    <span className="text-sm font-medium">{currentLocation.name}</span>
+        <div className={cn("fixed inset-0 z-[100] bg-black overflow-hidden flex animate-in fade-in duration-300", isLandscape ? "flex-row" : "flex-col")}>
+            {/* Camera + Top Bar 영역 (Landscape 시 flex-1로 카메라 영역 확보) */}
+            <div className={cn("relative", isLandscape ? "flex-1 min-w-0" : "contents")}>
+                {/* Camera Preview Placeholder / Real View */}
+                <div className={cn("z-0", isLandscape ? "absolute inset-0" : "absolute inset-0")}>
+                    {stream ? (
+                        <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-slate-900 flex items-center justify-center">
+                            <HugeiconsIcon icon={AiViewIcon} className="w-16 h-16 text-white/20 animate-pulse" />
+                        </div>
+                    )}
                 </div>
-                <button
-                    onClick={onClose}
-                    className="p-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 transition-colors"
-                >
-                    <HugeiconsIcon icon={Cancel01Icon} size={24} />
-                </button>
+
+                {/* Top Bar: Location & Close (Landscape 시 카메라 위에만 절대 배치) */}
+                <div className={cn(
+                    "z-10 flex items-center justify-between p-4",
+                    isLandscape ? "absolute left-0 top-0 right-0 pt-4" : "relative pt-12 md:pt-6"
+                )}>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/90">
+                        <HugeiconsIcon icon={Location01Icon} size={16} />
+                        <span className="text-sm font-medium">{currentLocation.name}</span>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 transition-colors"
+                    >
+                        <HugeiconsIcon icon={Cancel01Icon} size={24} />
+                    </button>
+                </div>
             </div>
 
             {/* Bottom Panel: Controls (Hidden if result is showing) */}
             {!generatedResult && (
-                <div className="mt-auto relative z-10 p-6 pb-12 md:pb-8 flex flex-col items-center gap-8 animate-in slide-in-from-bottom duration-500">
+                <div className={cn(
+                    "relative z-10 flex flex-col items-center animate-in slide-in-from-bottom duration-500",
+                    isLandscape ? "absolute right-0 top-0 bottom-0 w-[140px] justify-center gap-4 p-4" : "mt-auto p-6 pb-12 md:pb-8 gap-8"
+                )}>
                     {/* Style Selector */}
-                    <div className="w-full max-w-sm grid grid-cols-3 gap-3 p-1.5 rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/10">
+                    <div className={cn(
+                        "w-full grid gap-2 rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/10 p-1.5",
+                        isLandscape ? "grid-cols-1 max-w-none" : "max-w-sm grid-cols-3 gap-3"
+                    )}>
                         <button
                             onClick={() => setSelectedStyle("emotional")}
                             className={cn(
-                                "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all duration-300",
+                                "flex flex-col items-center gap-1.5 rounded-xl transition-all duration-300",
+                                isLandscape ? "py-2" : "py-3",
                                 selectedStyle === "emotional"
                                     ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
                                     : "text-white/60 hover:text-white"
@@ -352,7 +375,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                         <button
                             onClick={() => setSelectedStyle("information")}
                             className={cn(
-                                "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all duration-300",
+                                "flex flex-col items-center gap-1.5 rounded-xl transition-all duration-300",
+                                isLandscape ? "py-2" : "py-3",
                                 selectedStyle === "information"
                                     ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
                                     : "text-white/60 hover:text-white"
@@ -364,7 +388,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                         <button
                             onClick={() => setSelectedStyle("witty")}
                             className={cn(
-                                "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all duration-300",
+                                "flex flex-col items-center gap-1.5 rounded-xl transition-all duration-300",
+                                isLandscape ? "py-2" : "py-3",
                                 selectedStyle === "witty"
                                     ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
                                     : "text-white/60 hover:text-white"
@@ -376,7 +401,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                         <button
                             onClick={() => setSelectedStyle("auto")}
                             className={cn(
-                                "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all duration-300",
+                                "flex flex-col items-center gap-1.5 rounded-xl transition-all duration-300",
+                                isLandscape ? "py-2" : "py-3",
                                 selectedStyle === "auto"
                                     ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
                                     : "text-white/60 hover:text-white"
@@ -388,7 +414,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                         <button
                             onClick={() => setSelectedStyle("dictation")}
                             className={cn(
-                                "flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all duration-300",
+                                "flex flex-col items-center gap-1.5 rounded-xl transition-all duration-300",
+                                isLandscape ? "py-2" : "py-3",
                                 selectedStyle === "dictation"
                                     ? "bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]"
                                     : "text-white/60 hover:text-white"
@@ -399,9 +426,9 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                         </button>
                     </div>
 
-                    {/* Speech Transcript Preview */}
+                    {/* Speech Transcript Preview (Landscape: compact) */}
                     {transcribedText && (
-                        <div className="max-w-xs text-center text-white/90 text-sm font-medium bg-black/40 px-4 py-2 rounded-lg backdrop-blur-sm animate-in fade-in zoom-in">
+                        <div className={cn("text-center text-white/90 font-medium bg-black/40 px-4 py-2 rounded-lg backdrop-blur-sm animate-in fade-in zoom-in", isLandscape ? "max-w-full text-xs" : "max-w-xs text-sm")}>
                             "{transcribedText}"
                         </div>
                     )}
@@ -410,8 +437,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                     <div className="relative flex items-center justify-center">
                         {(isRecording || isGenerating) && (
                             <>
-                                <div className="absolute w-[120px] h-[120px] rounded-full border-2 border-primary animate-ping opacity-40" />
-                                <div className="absolute w-[160px] h-[160px] rounded-full border border-primary animate-ping delay-300 opacity-20" />
+                                <div className={cn("absolute rounded-full border-2 border-primary animate-ping opacity-40", isLandscape ? "w-[80px] h-[80px]" : "w-[120px] h-[120px]")} />
+                                <div className={cn("absolute rounded-full border border-primary animate-ping delay-300 opacity-20", isLandscape ? "w-[100px] h-[100px]" : "w-[160px] h-[160px]")} />
                             </>
                         )}
 
@@ -420,7 +447,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                                 onClick={handleDirectAnalysis}
                                 disabled={isGenerating}
                                 className={cn(
-                                    "relative z-20 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-500 bg-primary text-white hover:scale-110 shadow-xl shadow-primary/20",
+                                    "relative z-20 rounded-full flex items-center justify-center transition-all duration-500 bg-primary text-white hover:scale-110 shadow-xl shadow-primary/20",
+                                    isLandscape ? "w-16 h-16" : "w-24 h-24",
                                     isGenerating && "opacity-50 cursor-not-allowed"
                                 )}
                             >
@@ -428,7 +456,7 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                                     <div className="w-10 h-10 rounded-full border-4 border-white/30 border-t-white animate-spin" />
                                 ) : (
                                     <div className="flex flex-col items-center">
-                                        <HugeiconsIcon icon={Camera01Icon} size={32} />
+                                        <HugeiconsIcon icon={Camera01Icon} size={isLandscape ? 24 : 32} />
                                         <span className="text-[10px] font-bold mt-1">분석 및 생성</span>
                                     </div>
                                 )}
@@ -438,7 +466,8 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                                 onClick={handleToggleRecording}
                                 disabled={isGenerating}
                                 className={cn(
-                                    "relative z-20 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-500",
+                                    "relative z-20 rounded-full flex items-center justify-center transition-all duration-500",
+                                    isLandscape ? "w-16 h-16" : "w-24 h-24",
                                     isRecording
                                         ? "bg-destructive scale-90"
                                         : "bg-white text-black hover:scale-110 shadow-xl shadow-white/10",
@@ -450,12 +479,12 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                                 ) : isRecording ? (
                                     <div className="w-8 h-8 bg-white rounded-sm" />
                                 ) : (
-                                    <HugeiconsIcon icon={Mic01Icon} size={40} />
+                                    <HugeiconsIcon icon={Mic01Icon} size={isLandscape ? 28 : 40} />
                                 )}
                             </button>
                         )}
 
-                        {!isRecording && !isGenerating && (
+                        {!isLandscape && !isRecording && !isGenerating && (
                             <div className="absolute -bottom-10 whitespace-nowrap text-white/80 text-sm font-medium flex items-center gap-1.5 animate-bounce">
                                 {selectedStyle === "auto" ? "버튼을 눌러 바로 분석해보세요" : "눌러서 감상을 말해보세요"} <HugeiconsIcon icon={ArrowRight01Icon} size={14} className="rotate-90" />
                             </div>
@@ -550,8 +579,13 @@ export function LogModeOverlay({ isOpen, onClose }: LogModeOverlayProps) {
                 </div>
             )}
 
-            {/* Premium Glow Gradient overlay */}
-            <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+            {/* Premium Glow Gradient overlay (Landscape: 우측만, Portrait: 하단) */}
+            <div className={cn(
+                "absolute pointer-events-none",
+                isLandscape
+                    ? "right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-black/70 to-transparent"
+                    : "bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent"
+            )} />
         </div>
     );
 }
